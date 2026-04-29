@@ -171,9 +171,8 @@ function rowFromDb(row) {
   };
 }
 
-function rowToDb(row) {
-  return {
-    id: row.id,
+function rowToDb(row, includeId = false) {
+  const payload = {
     fecha: row.fecha,
     responsable: row.responsable,
     accion: row.accion,
@@ -197,6 +196,12 @@ function rowToDb(row) {
     seguidores: toNumber(row.seguidores),
     notas: row.notas,
   };
+
+  if (includeId && row.id) {
+    payload.id = row.id;
+  }
+
+  return payload;
 }
 
 function pautaFromDb(row) {
@@ -213,9 +218,8 @@ function pautaFromDb(row) {
   };
 }
 
-function pautaToDb(row) {
-  return {
-    id: row.id,
+function pautaToDb(row, includeId = false) {
+  const payload = {
     fecha: row.fecha,
     url: row.url,
     medio: row.medio,
@@ -225,6 +229,12 @@ function pautaToDb(row) {
     ctr: toNumber(row.ctr),
     visualizaciones: toNumber(row.visualizaciones),
   };
+
+  if (includeId && row.id) {
+    payload.id = row.id;
+  }
+
+  return payload;
 }
 
 function catalogosFromDb(rows) {
@@ -1404,37 +1414,60 @@ export default function OndaExpansivaApp() {
       setIsLoading(true);
       setSyncStatus("");
 
-      const [accionesResult, pautaResult, catalogosResult, conclusionesResult] = await Promise.all([
-        supabase.from("acciones").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
-        supabase.from("pauta").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
-        supabase.from("catalogos").select("*").order("categoria", { ascending: true }),
-        supabase.from("conclusiones").select("*").order("fecha", { ascending: true }),
-      ]);
+      try {
+        const [accionesResult, pautaResult, catalogosResult, conclusionesResult] = await Promise.all([
+          supabase.from("acciones").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
+          supabase.from("pauta").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
+          supabase.from("catalogos").select("*").order("categoria", { ascending: true }),
+          supabase.from("conclusiones").select("*").order("fecha", { ascending: true }),
+        ]);
 
-      const error =
-        accionesResult.error ||
-        pautaResult.error ||
-        catalogosResult.error ||
-        conclusionesResult.error;
+        // Diagnóstico detallado por tabla
+        const errors = [];
+        if (accionesResult.error) errors.push(`acciones: ${accionesResult.error.message} (${accionesResult.error.code})`);
+        if (pautaResult.error) errors.push(`pauta: ${pautaResult.error.message} (${pautaResult.error.code})`);
+        if (catalogosResult.error) errors.push(`catalogos: ${catalogosResult.error.message} (${catalogosResult.error.code})`);
+        if (conclusionesResult.error) errors.push(`conclusiones: ${conclusionesResult.error.message} (${conclusionesResult.error.code})`);
 
-      if (error) {
+        if (errors.length > 0) {
+          if (mounted) {
+            setSyncStatus(`Error en tablas: ${errors.join(" | ")}`);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        // Detectar posible problema de RLS (tablas vacías sin error)
+        const warnings = [];
+        if (safeArray(accionesResult.data).length === 0) warnings.push("acciones");
+        if (safeArray(pautaResult.data).length === 0) warnings.push("pauta");
+        if (safeArray(catalogosResult.data).length === 0) warnings.push("catalogos");
+
+        const nextCatalogos = catalogosFromDb(catalogosResult.data);
+
         if (mounted) {
-          setSyncStatus(`Error cargando datos de Supabase: ${error.message}`);
+          setCatalogos(nextCatalogos);
+          setRows(safeArray(accionesResult.data).map(rowFromDb));
+          setPautaRows(safeArray(pautaResult.data).map(pautaFromDb));
+          setConclusionesPorFecha(conclusionesFromDb(conclusionesResult.data));
+          setForm(createForm(nextCatalogos));
+          setPautaForm(createPautaForm(nextCatalogos));
+          setIsLoading(false);
+
+          if (warnings.length > 0 && warnings.length >= 3) {
+            setSyncStatus(
+              `Advertencia: Las tablas [${warnings.join(", ")}] están vacías. ` +
+              `Si ya registraste datos, verifica que RLS (Row Level Security) esté desactivado ` +
+              `o que tengas policies configuradas en Supabase.`
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Error loading dashboard:", err);
+        if (mounted) {
+          setSyncStatus(`Error de conexión con Supabase: ${err.message}. Verifica VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.`);
           setIsLoading(false);
         }
-        return;
-      }
-
-      const nextCatalogos = catalogosFromDb(catalogosResult.data);
-
-      if (mounted) {
-        setCatalogos(nextCatalogos);
-        setRows(safeArray(accionesResult.data).map(rowFromDb));
-        setPautaRows(safeArray(pautaResult.data).map(pautaFromDb));
-        setConclusionesPorFecha(conclusionesFromDb(conclusionesResult.data));
-        setForm(createForm(nextCatalogos));
-        setPautaForm(createPautaForm(nextCatalogos));
-        setIsLoading(false);
       }
     }
 
@@ -1559,16 +1592,31 @@ export default function OndaExpansivaApp() {
   async function persistCatalogos(nextCatalogos) {
     setCatalogos(nextCatalogos);
 
-    const { error } = await supabase
-      .from("catalogos")
-      .upsert(catalogosToDb(nextCatalogos), { onConflict: "categoria" });
+    try {
+      const { error } = await supabase
+        .from("catalogos")
+        .upsert(catalogosToDb(nextCatalogos), { onConflict: "categoria" });
 
-    if (error) {
-      setSyncStatus(`Error guardando catálogos: ${error.message}`);
+      if (error) {
+        console.error("Supabase catalogos upsert error:", error);
+
+        if (error.code === "42501") {
+          setSyncStatus("Error de permisos: RLS activo en 'catalogos'. Desactiva RLS o agrega policies.");
+        } else if (error.code === "23505" || error.message.includes("unique") || error.message.includes("duplicate")) {
+          setSyncStatus("Error: La columna 'categoria' necesita un constraint UNIQUE en Supabase.");
+        } else {
+          setSyncStatus(`Error guardando catálogos: ${error.message} (${error.code || "N/A"})`);
+        }
+
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error("Unexpected catalogos error:", err);
+      setSyncStatus(`Error inesperado en catálogos: ${err.message}`);
       return false;
     }
-
-    return true;
   }
 
   async function deleteRow(id) {
@@ -1782,30 +1830,42 @@ export default function OndaExpansivaApp() {
 
     const next = { ...conclusionesPorFecha };
 
-    if (items.length) {
-      const { error } = await supabase
-        .from("conclusiones")
-        .upsert({ fecha: fechaConclusiones, conclusiones: items }, { onConflict: "fecha" });
+    try {
+      if (items.length) {
+        const { error } = await supabase
+          .from("conclusiones")
+          .upsert({ fecha: fechaConclusiones, conclusiones: items }, { onConflict: "fecha" });
 
-      if (error) {
-        setSyncStatus(`Error guardando conclusiones: ${error.message}`);
-        return;
+        if (error) {
+          console.error("Supabase conclusiones upsert error:", error);
+
+          if (error.message.includes("unique") || error.message.includes("duplicate") || error.code === "23505") {
+            setSyncStatus("Error: La columna 'fecha' en tabla 'conclusiones' necesita un constraint UNIQUE.");
+          } else {
+            setSyncStatus(`Error guardando conclusiones: ${error.message} (${error.code || "N/A"})`);
+          }
+
+          return;
+        }
+
+        next[fechaConclusiones] = items;
+      } else {
+        const { error } = await supabase.from("conclusiones").delete().eq("fecha", fechaConclusiones);
+
+        if (error) {
+          setSyncStatus(`Error eliminando conclusiones: ${error.message}`);
+          return;
+        }
+
+        delete next[fechaConclusiones];
       }
 
-      next[fechaConclusiones] = items;
-    } else {
-      const { error } = await supabase.from("conclusiones").delete().eq("fecha", fechaConclusiones);
-
-      if (error) {
-        setSyncStatus(`Error eliminando conclusiones: ${error.message}`);
-        return;
-      }
-
-      delete next[fechaConclusiones];
+      setConclusionesPorFecha(next);
+      setSyncStatus("Conclusiones guardadas correctamente.");
+    } catch (err) {
+      console.error("Unexpected conclusiones error:", err);
+      setSyncStatus(`Error inesperado: ${err.message}`);
     }
-
-    setConclusionesPorFecha(next);
-    setSyncStatus("Conclusiones guardadas correctamente.");
   }
 
   function handleVistaChange(nextVista) {
@@ -1833,10 +1893,10 @@ export default function OndaExpansivaApp() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    setSyncStatus("");
 
     const newRow = {
       ...form,
-      id: uid(),
       alcance: toNumber(form.alcance),
       meGusta: toNumber(form.meGusta),
       comentarios: toNumber(form.comentarios),
@@ -1846,24 +1906,39 @@ export default function OndaExpansivaApp() {
       seguidores: toNumber(form.seguidores),
     };
 
-    const { data, error } = await supabase.from("acciones").insert(rowToDb(newRow)).select().single();
+    try {
+      const { data, error } = await supabase
+        .from("acciones")
+        .insert(rowToDb(newRow))
+        .select()
+        .single();
 
-    if (error) {
-      setSyncStatus(`Error guardando acción: ${error.message}`);
-      return;
+      if (error) {
+        console.error("Supabase insert error:", error);
+        setSyncStatus(`Error guardando acción: ${error.message} (código: ${error.code || "N/A"})`);
+        return;
+      }
+
+      if (!data) {
+        setSyncStatus("Error: Supabase no retornó datos. Verifica permisos RLS en la tabla 'acciones'.");
+        return;
+      }
+
+      setRows((prev) => [rowFromDb(data), ...prev]);
+      setForm(createForm(catalogos));
+      setVista("dashboard");
+      setSyncStatus("Acción guardada correctamente.");
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      setSyncStatus(`Error inesperado: ${err.message}`);
     }
-
-    setRows((prev) => [rowFromDb(data), ...prev]);
-    setForm(createForm(catalogos));
-    setVista("dashboard");
-    setSyncStatus("Acción guardada correctamente.");
   }
 
   async function handleAddPauta() {
     if (!pautaForm.url.trim()) return;
+    setSyncStatus("");
 
     const newRow = {
-      id: uid(),
       fecha: pautaForm.fecha || today(),
       url: pautaForm.url.trim(),
       medio: pautaForm.medio,
@@ -1874,16 +1949,31 @@ export default function OndaExpansivaApp() {
       visualizaciones: toNumber(pautaForm.visualizaciones),
     };
 
-    const { data, error } = await supabase.from("pauta").insert(pautaToDb(newRow)).select().single();
+    try {
+      const { data, error } = await supabase
+        .from("pauta")
+        .insert(pautaToDb(newRow))
+        .select()
+        .single();
 
-    if (error) {
-      setSyncStatus(`Error guardando pauta: ${error.message}`);
-      return;
+      if (error) {
+        console.error("Supabase pauta insert error:", error);
+        setSyncStatus(`Error guardando pauta: ${error.message} (código: ${error.code || "N/A"})`);
+        return;
+      }
+
+      if (!data) {
+        setSyncStatus("Error: Supabase no retornó datos. Verifica permisos RLS en la tabla 'pauta'.");
+        return;
+      }
+
+      setPautaRows((prev) => [pautaFromDb(data), ...prev]);
+      setPautaForm(createPautaForm(catalogos));
+      setSyncStatus("Contenido pautado guardado correctamente.");
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      setSyncStatus(`Error inesperado: ${err.message}`);
     }
-
-    setPautaRows((prev) => [pautaFromDb(data), ...prev]);
-    setPautaForm(createPautaForm(catalogos));
-    setSyncStatus("Contenido pautado guardado correctamente.");
   }
 
   const clearDateFilters = () => {
