@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import {
   Area,
   AreaChart,
@@ -632,19 +632,19 @@ function KpiCard({ title, value, subtitle, icon, tone = "dark" }) {
   };
 
   return (
-    <div className={`rounded-[1.35rem] bg-gradient-to-br ${tones[tone] || tones.dark} p-4 shadow-lg shadow-slate-200 sm:rounded-[1.6rem] sm:p-5`}>
+    <div className={`min-w-0 max-w-full rounded-[1.35rem] bg-gradient-to-br ${tones[tone] || tones.dark} p-4 shadow-lg shadow-slate-200 sm:rounded-[1.6rem] sm:p-5`}>
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide opacity-80 sm:text-sm sm:normal-case sm:tracking-normal">
             {title}
           </p>
-          <p className="mt-2 text-2xl font-black tracking-tight sm:text-3xl md:text-4xl">
+          <p className="mt-2 break-words text-2xl font-black tracking-tight sm:text-3xl md:text-4xl">
             {value}
           </p>
           <p className="mt-1 text-xs opacity-75">{subtitle}</p>
         </div>
 
-        <div className="rounded-2xl bg-white/15 p-3">{icon}</div>
+        <div className="shrink-0 rounded-2xl bg-white/15 p-3">{icon}</div>
       </div>
     </div>
   );
@@ -659,14 +659,14 @@ function MetricCard({ title, value, subtitle, icon, color }) {
   };
 
   return (
-    <div className={`relative min-h-[170px] overflow-hidden rounded-[1.35rem] ${colors[color] || colors.red} p-5 shadow-lg shadow-slate-200 sm:rounded-[1.6rem] sm:p-6`}>
+    <div className={`relative min-h-[170px] min-w-0 max-w-full overflow-hidden rounded-[1.35rem] ${colors[color] || colors.red} p-5 shadow-lg shadow-slate-200 sm:rounded-[1.6rem] sm:p-6`}>
       <div className="absolute right-4 top-4 rounded-xl bg-white/15 p-3 sm:right-5 sm:top-5">
         {icon}
       </div>
       <p className="max-w-[78%] text-[0.68rem] font-black uppercase tracking-[0.2em] opacity-80 sm:text-xs sm:tracking-[0.24em]">
         {title}
       </p>
-      <p className="mt-10 text-center text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
+      <p className="mt-10 break-words text-center text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
         {value}
       </p>
       <div className="my-3 border-t border-dashed border-current opacity-25" />
@@ -677,21 +677,21 @@ function MetricCard({ title, value, subtitle, icon, color }) {
 
 function MiniKpi({ title, value, icon }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+    <div className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500 sm:text-xs">
           {title}
         </p>
         <div className="rounded-xl bg-white p-2 text-slate-600 shadow-sm">{icon}</div>
       </div>
-      <p className="text-xl font-black text-slate-900 sm:text-2xl">{value}</p>
+      <p className="break-words text-xl font-black text-slate-900 sm:text-2xl">{value}</p>
     </div>
   );
 }
 
 function OndaHero({ value }) {
   return (
-    <section className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white px-5 py-8 shadow-sm sm:rounded-[2rem] sm:px-6 sm:py-10 md:px-10 md:py-14">
+    <section className="relative w-full min-w-0 max-w-full overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white px-5 py-8 shadow-sm sm:rounded-[2rem] sm:px-6 sm:py-10 md:px-10 md:py-14">
       <div className="absolute right-[-90px] top-[-90px] h-48 w-48 rounded-full border-[16px] border-red-100 sm:h-52 sm:w-52 sm:border-[18px]" />
       <div className="absolute right-[12px] top-[-62px] h-32 w-32 rounded-full border-[12px] border-yellow-100 sm:right-[60px] sm:top-[-50px] sm:h-36 sm:w-36 sm:border-[14px]" />
 
@@ -721,7 +721,7 @@ function ToggleChip({ active, onClick, label }) {
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-black transition sm:w-auto ${
+      className={`inline-flex w-full min-w-0 items-center justify-start gap-2 rounded-full px-4 py-2 text-left text-sm font-black transition sm:w-auto sm:justify-center sm:text-center ${
         active ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-600"
       }`}
     >
@@ -755,7 +755,7 @@ function EmptyState({ text }) {
 
 function Field({ label, children }) {
   return (
-    <label className="grid gap-1.5 text-sm font-black text-slate-700">
+    <label className="grid min-w-0 gap-1.5 text-sm font-black text-slate-700">
       {label}
       {children}
     </label>
@@ -779,7 +779,7 @@ function FilterSelect({ value, onChange, options }) {
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-slate-500 focus:bg-white"
+      className="h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-slate-500 focus:bg-white"
     >
       {options.map((option) => (
         <option key={option} value={option}>
@@ -792,7 +792,7 @@ function FilterSelect({ value, onChange, options }) {
 
 function ChartCard({ title, subtitle, children }) {
   return (
-    <div className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
+    <div className="min-w-0 max-w-full rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
       <div className="mb-3">
         <h3 className="text-base font-black text-slate-950 sm:text-lg">{title}</h3>
         <p className="text-sm text-slate-500">{subtitle}</p>
@@ -818,7 +818,7 @@ function ContactoDirectoSection({ data }) {
         }
       />
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         <DirectCard
           title="SMS"
           icon={<IconMessage className="h-5 w-5" />}
@@ -851,33 +851,33 @@ function ContactoDirectoSection({ data }) {
 
 function DirectCard({ title, icon, labelA, valueA, labelB, valueB, footerLabel, footerValue, totalLabel, totalValue }) {
   return (
-    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm sm:rounded-[1.8rem] sm:p-6">
-      <div className="mb-6 flex items-center gap-3 sm:mb-7">
-        <div className="rounded-2xl bg-red-50 p-4 text-[#d7193f]">{icon}</div>
-        <h3 className="text-xl font-black text-slate-900 sm:text-2xl">{title}</h3>
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
+      <div className="mb-5 flex items-center gap-3">
+        <div className="rounded-2xl bg-red-50 p-3.5 text-[#d7193f]">{icon}</div>
+        <h3 className="text-lg font-black text-slate-900 sm:text-xl">{title}</h3>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-400 sm:text-sm">{labelA}</p>
-          <p className="mt-2 text-3xl font-black text-[#2b1719] sm:mt-3 sm:text-4xl">{valueA}</p>
+          <p className="mt-2 break-words text-2xl font-black text-[#2b1719] sm:text-3xl">{valueA}</p>
         </div>
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-400 sm:text-sm">{labelB}</p>
-          <p className="mt-2 text-xl font-black text-[#2b1719] sm:mt-3 sm:text-2xl">{valueB}</p>
+          <p className="mt-2 break-words text-lg font-black text-[#2b1719] sm:text-xl">{valueB}</p>
         </div>
       </div>
 
-      <div className="mt-7 rounded-2xl bg-[#f5f0e8] px-4 py-4 sm:px-5">
+      <div className="mt-6 rounded-2xl bg-[#f5f0e8] px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-base text-slate-500 sm:text-xl">{footerLabel}</span>
-          <span className="text-2xl font-black text-[#2b1719] sm:text-3xl">{footerValue}</span>
+          <span className="text-sm text-slate-500 sm:text-base">{footerLabel}</span>
+          <span className="break-words text-xl font-black text-[#2b1719] sm:text-2xl">{footerValue}</span>
         </div>
       </div>
 
-      <div className="mt-7 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-lg text-slate-500 sm:text-2xl">{totalLabel}</span>
-        <span className="text-2xl font-black text-[#2b1719] sm:text-3xl">{totalValue}</span>
+      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-base text-slate-500 sm:text-lg">{totalLabel}</span>
+        <span className="break-words text-xl font-black text-[#2b1719] sm:text-2xl">{totalValue}</span>
       </div>
     </div>
   );
@@ -906,9 +906,9 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
             <h3 className="text-xl font-black text-slate-900 sm:text-2xl">Links</h3>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[150px_2fr_160px_130px_130px_150px_110px_160px_auto]">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[140px_minmax(180px,1fr)_150px_repeat(5,minmax(105px,1fr))_120px]">
             <input type="date" value={form.fecha} onChange={(event) => onChange("fecha", event.target.value)} className="input" />
-            <input value={form.url} onChange={(event) => onChange("url", event.target.value)} className="input lg:col-span-2 xl:col-span-1" placeholder="https://..." />
+            <input type="url" value={form.url} onChange={(event) => onChange("url", event.target.value)} className="input md:col-span-2 xl:col-span-1" placeholder="https://..." />
             <select value={form.medio} onChange={(event) => onChange("medio", event.target.value)} className="input">
               {catalogos.mediosPauta.map((item) => (
                 <option key={item} value={item}>{item}</option>
@@ -919,14 +919,14 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
             <input type="number" min="0" value={form.interacciones} onChange={(event) => onChange("interacciones", event.target.value)} className="input" placeholder="Interacciones" />
             <input type="number" min="0" step="0.1" value={form.ctr} onChange={(event) => onChange("ctr", event.target.value)} className="input" placeholder="CTR" />
             <input type="number" min="0" value={form.visualizaciones} onChange={(event) => onChange("visualizaciones", event.target.value)} className="input" placeholder="Visualizaciones" />
-            <button type="button" onClick={onAdd} className="btn-danger">
+            <button type="button" onClick={onAdd} className="btn-danger whitespace-nowrap">
               <IconPlus className="h-4 w-4" /> Agregar
             </button>
           </div>
         </div>
       )}
 
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200">
+      <div className="-mx-4 mt-6 overflow-x-auto border-y border-slate-200 sm:mx-0 sm:rounded-2xl sm:border">
         <table className="w-full min-w-[1260px] text-left text-sm">
           <thead>
             <tr className="bg-white text-xs uppercase tracking-wide text-slate-700">
@@ -969,7 +969,7 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
                   <td className="px-4 py-4 text-right font-semibold">{fmt(row.visualizaciones)}</td>
                   {!readOnly && (
                     <td className="px-4 py-4 text-right">
-                      <button type="button" onClick={() => onDelete(row.id)} className="inline-flex items-center rounded-xl p-2 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                      <button type="button" onClick={() => onDelete(row.id)} className="inline-flex items-center rounded-xl p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Eliminar contenido pautado">
                         <IconTrash className="h-4 w-4" />
                       </button>
                     </td>
@@ -995,6 +995,7 @@ function ConclusionesSection({
   onDateChange,
   onDraftChange,
   onSave,
+  readOnly = false,
 }) {
   const label = dateStart && dateEnd ? `Periodo ${dateStart} a ${dateEnd}` : dateStart ? `Desde ${dateStart}` : dateEnd ? `Hasta ${dateEnd}` : "Todas las fechas";
 
@@ -1003,18 +1004,18 @@ function ConclusionesSection({
       <SectionTitle
         icon={<IconFileText className="h-5 w-5" />}
         title="Conclusiones Generales"
-        badge={
+        badge={!readOnly ? (
           <button type="button" onClick={onToggleConfig} className="btn-tab">
             <IconSettings className="h-4 w-4" /> Configurar por fecha
           </button>
-        }
+        ) : null}
       />
 
       <div className="mb-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-500">
         {label}
       </div>
 
-      {openConfig && (
+      {!readOnly && openConfig && (
         <div className="mb-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
           <div className="grid gap-4 md:grid-cols-[220px_1fr_auto] md:items-end">
             <Field label="Fecha de conclusiones">
@@ -1069,13 +1070,13 @@ function FilterPanel({
 }) {
   return (
     <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem]">
-      <div className="grid gap-3 lg:grid-cols-[1.3fr_180px_180px_220px]">
-        <div className="relative">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,180px)_minmax(0,180px)_minmax(0,220px)]">
+        <div className="relative min-w-0">
           <span className="pointer-events-none absolute left-4 top-3.5 text-slate-400">
             <IconSearch className="h-4 w-4" />
           </span>
 
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none focus:border-slate-500 focus:bg-white" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} className="h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none focus:border-slate-500 focus:bg-white" />
         </div>
 
         <FilterSelect value={responsable} onChange={setResponsable} options={["Todos", ...catalogos.responsables]} />
@@ -1157,11 +1158,11 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         </Field>
 
         <Field label="Link perfil / grupo">
-          <input value={form.linkPerfil} onChange={(event) => handleChange("linkPerfil", event.target.value)} className="input" placeholder="https://..." />
+          <input type="url" value={form.linkPerfil} onChange={(event) => handleChange("linkPerfil", event.target.value)} className="input" placeholder="https://..." />
         </Field>
 
         <Field label="Link de la publicación">
-          <input value={form.linkPublicacion} onChange={(event) => handleChange("linkPublicacion", event.target.value)} className="input" placeholder="https://..." />
+          <input type="url" value={form.linkPublicacion} onChange={(event) => handleChange("linkPublicacion", event.target.value)} className="input" placeholder="https://..." />
         </Field>
       </div>
 
@@ -1226,7 +1227,7 @@ function ConsolidadoTable({ rows, removeRow }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200">
+      <div className="-mx-4 overflow-x-auto border-y border-slate-200 sm:mx-0 sm:rounded-2xl sm:border">
         <table className="w-full min-w-[1180px] text-left text-sm">
           <thead>
             <tr className="bg-slate-950 text-xs uppercase tracking-wide text-white">
@@ -1338,6 +1339,43 @@ function ConfiguracionSection({ catalogos, onRename, onAdd, onRemove, onReset, c
   );
 }
 
+function CatalogItemEditor({ item, index, category, onRename, onRemove }) {
+  const [draft, setDraft] = useState(item);
+
+  function commitDraft() {
+    const nextValue = draft.trim();
+
+    if (!nextValue) {
+      setDraft(item);
+      return;
+    }
+
+    if (nextValue !== item) {
+      void onRename(category, index, nextValue);
+    }
+  }
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+      <input
+        value={draft}
+        onBlur={commitDraft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+        }}
+        className="input"
+      />
+      <button type="button" onClick={() => onRemove(category, item)} className="rounded-2xl border border-red-100 px-4 py-2 text-sm font-black text-red-600 hover:bg-red-50">
+        Eliminar
+      </button>
+    </div>
+  );
+}
+
 function CatalogManager({ title, description, items, category, onRename, onAdd, onRemove }) {
   const [newItem, setNewItem] = useState("");
 
@@ -1350,12 +1388,14 @@ function CatalogManager({ title, description, items, category, onRename, onAdd, 
 
       <div className="grid gap-3">
         {items.map((item, index) => (
-          <div key={`${category}-${item}-${index}`} className="grid gap-2 sm:grid-cols-[1fr_auto]">
-            <input value={item} onChange={(event) => onRename(category, index, event.target.value)} className="input" />
-            <button type="button" onClick={() => onRemove(category, item)} className="rounded-2xl border border-red-100 px-4 py-2 text-sm font-black text-red-600 hover:bg-red-50">
-              Eliminar
-            </button>
-          </div>
+          <CatalogItemEditor
+            key={`${category}-${item}-${index}`}
+            item={item}
+            index={index}
+            category={category}
+            onRename={onRename}
+            onRemove={onRemove}
+          />
         ))}
       </div>
 
@@ -1377,7 +1417,7 @@ function CatalogManager({ title, description, items, category, onRename, onAdd, 
 }
 
 export default function OndaExpansivaApp() {
-  const { isCM, isVisualizador, user, logout } = useAuth();
+  const { isCM, user, logout } = useAuth();
   const [catalogos, setCatalogos] = useState(() => mergeCatalogos(CATALOGOS_BASE));
   const [rows, setRows] = useState([]);
   const [pautaRows, setPautaRows] = useState([]);
@@ -1405,6 +1445,7 @@ export default function OndaExpansivaApp() {
 
   const [csvStatus, setCsvStatus] = useState("");
   const [configMessage, setConfigMessage] = useState("");
+  const csvTimeoutRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -1451,6 +1492,14 @@ export default function OndaExpansivaApp() {
 
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (csvTimeoutRef.current) {
+        clearTimeout(csvTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -1836,7 +1885,14 @@ export default function OndaExpansivaApp() {
     );
 
     if (typeof window !== "undefined") {
-      window.setTimeout(() => setCsvStatus(""), 4000);
+      if (csvTimeoutRef.current) {
+        window.clearTimeout(csvTimeoutRef.current);
+      }
+
+      csvTimeoutRef.current = window.setTimeout(() => {
+        setCsvStatus("");
+        csvTimeoutRef.current = null;
+      }, 4000);
     }
   }
 
@@ -1909,16 +1965,16 @@ export default function OndaExpansivaApp() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-5 md:px-6">
+    <div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-[#f5f7fb] text-slate-900">
+      <header className="w-full border-b border-slate-200 bg-white">
+        <div className="mx-auto w-full max-w-7xl px-4 py-5 md:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-slate-600">
+            <div className="min-w-0">
+              <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-600 sm:tracking-[0.2em]">
                 <IconActivity className="h-3.5 w-3.5" /> Plataforma de gestión diaria
               </div>
 
-              <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
+              <h1 className="mt-3 break-words text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
                 Onda Expansiva
               </h1>
 
@@ -1927,13 +1983,11 @@ export default function OndaExpansivaApp() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-              {/* Dashboard - visible para todos */}
+            <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end lg:max-w-xl xl:max-w-none">
               <button type="button" onClick={() => handleVistaChange("dashboard")} className={`btn-tab ${vista === "dashboard" ? "btn-tab-active" : ""}`}>
                 <IconBarChart className="h-4 w-4" /> Dashboard
               </button>
 
-              {/* Solo CM */}
               {isCM && (
                 <>
                   <button type="button" onClick={() => handleVistaChange("registro")} className={`btn-tab ${vista === "registro" ? "btn-tab-active" : ""}`}>
@@ -1954,7 +2008,6 @@ export default function OndaExpansivaApp() {
                 </>
               )}
 
-              {/* Botón logout — solo para CM autenticado */}
               {isCM && (
                 <button
                   type="button"
@@ -1970,28 +2023,28 @@ export default function OndaExpansivaApp() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:gap-6 sm:py-6 md:px-6">
+      <main className="mx-auto grid w-full min-w-0 max-w-7xl gap-5 px-0 py-5 sm:gap-6 sm:py-6">
         {csvStatus && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
+          <div className="dashboard-shell rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
             {csvStatus}
           </div>
         )}
 
         {isLoading && (
-          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700">
+          <div className="dashboard-shell rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700">
             Cargando datos desde Supabase...
           </div>
         )}
 
         {syncStatus && (
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">
+          <div className="dashboard-shell rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">
             {syncStatus}
           </div>
         )}
 
         {vista === "dashboard" && (
-          <>
-            <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
+          <div className="dashboard-shell grid gap-5 sm:gap-6">
+            <section className="w-full min-w-0 max-w-full rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
               <div className="mb-4">
                 <h2 className="text-base font-black uppercase tracking-[0.15em] text-slate-900 sm:text-lg">
                   Control de secciones
@@ -2002,27 +2055,11 @@ export default function OndaExpansivaApp() {
                 </p>
               </div>
 
-              <div className="grid gap-3 sm:flex sm:flex-wrap">
+              <div className="grid min-w-0 gap-3 sm:flex sm:flex-wrap">
                 <ToggleChip active={mostrarContactoDirecto} onClick={() => setMostrarContactoDirecto((prev) => !prev)} label="Contacto Directo" />
                 <ToggleChip active={mostrarContenidoPautado} onClick={() => setMostrarContenidoPautado((prev) => !prev)} label="Contenido Pautado" />
                 <ToggleChip active={mostrarConclusiones} onClick={() => setMostrarConclusiones((prev) => !prev)} label="Conclusiones Generales" />
               </div>
-            </section>
-
-            <OndaHero value={resumenPeriodo.ondaExpansiva} />
-
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard title="Interacciones captadas" value={fmt(resumenPeriodo.interaccionesCaptadas)} subtitle="Me gusta y reacciones" icon={<IconZap className="h-5 w-5" />} color="yellow" />
-              <MetricCard title="Compartido" value={fmt(resumenPeriodo.compartidos)} subtitle="Compartidos, reposts e historias" icon={<IconShare className="h-5 w-5" />} color="purple" />
-              <MetricCard title="Comentarios" value={fmt(resumenPeriodo.comentarios)} subtitle="Total comentarios" icon={<IconComment className="h-5 w-5" />} color="brown" />
-              <MetricCard title="Seguidores captados" value={fmt(resumenPeriodo.seguidoresCaptados)} subtitle="Nuevos seguidores" icon={<IconUserPlus className="h-5 w-5" />} color="red" />
-            </section>
-
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCard title="Onda expansiva registrada" value={fmt(kpis.totalOnda)} subtitle="Desde acciones diligenciadas" icon={<IconNetwork className="h-6 w-6" />} tone="dark" />
-              <KpiCard title="Contenidos realizados" value={fmt(kpis.contenidos)} subtitle="Creación de contenido" icon={<IconMegaphone className="h-6 w-6" />} tone="blue" />
-              <KpiCard title="Contenidos difundidos" value={fmt(kpis.difundidos)} subtitle="Siembra y amplificación" icon={<IconRadio className="h-6 w-6" />} tone="green" />
-              <KpiCard title="Redes activas" value={fmt(kpis.redesActivas)} subtitle="Canales con actividad" icon={<IconUsers className="h-6 w-6" />} tone="orange" />
             </section>
 
             <FilterPanel
@@ -2043,7 +2080,23 @@ export default function OndaExpansivaApp() {
               clearDateFilters={clearDateFilters}
             />
 
-            <section className="grid gap-5 xl:grid-cols-2">
+            <OndaHero value={resumenPeriodo.ondaExpansiva} />
+
+            <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard title="Interacciones captadas" value={fmt(resumenPeriodo.interaccionesCaptadas)} subtitle="Me gusta y reacciones" icon={<IconZap className="h-5 w-5" />} color="yellow" />
+              <MetricCard title="Compartido" value={fmt(resumenPeriodo.compartidos)} subtitle="Compartidos, reposts e historias" icon={<IconShare className="h-5 w-5" />} color="purple" />
+              <MetricCard title="Comentarios" value={fmt(resumenPeriodo.comentarios)} subtitle="Total comentarios" icon={<IconComment className="h-5 w-5" />} color="brown" />
+              <MetricCard title="Seguidores captados" value={fmt(resumenPeriodo.seguidoresCaptados)} subtitle="Nuevos seguidores" icon={<IconUserPlus className="h-5 w-5" />} color="red" />
+            </section>
+
+            <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <KpiCard title="Onda expansiva registrada" value={fmt(kpis.totalOnda)} subtitle="Desde acciones diligenciadas" icon={<IconNetwork className="h-6 w-6" />} tone="dark" />
+              <KpiCard title="Contenidos realizados" value={fmt(kpis.contenidos)} subtitle="Creación de contenido" icon={<IconMegaphone className="h-6 w-6" />} tone="blue" />
+              <KpiCard title="Contenidos difundidos" value={fmt(kpis.difundidos)} subtitle="Siembra y amplificación" icon={<IconRadio className="h-6 w-6" />} tone="green" />
+              <KpiCard title="Redes activas" value={fmt(kpis.redesActivas)} subtitle="Canales con actividad" icon={<IconUsers className="h-6 w-6" />} tone="orange" />
+            </section>
+
+            <section className="grid w-full min-w-0 max-w-full gap-5 xl:grid-cols-2">
               <ChartCard title="Onda expansiva por Community Manager" subtitle="Total acumulado por responsable">
                 {ondaPorCm.length === 0 ? (
                   <EmptyState text="No hay acciones registradas por responsable." />
@@ -2124,9 +2177,9 @@ export default function OndaExpansivaApp() {
                 rows={filteredPautaRows}
                 form={pautaForm}
                 catalogos={catalogos}
-                onChange={isCM ? handlePautaChange : () => {}}
-                onAdd={isCM ? handleAddPauta : () => {}}
-                onDelete={isCM ? deletePautaRow : () => {}}
+                onChange={handlePautaChange}
+                onAdd={handleAddPauta}
+                onDelete={deletePautaRow}
                 resumen={pautaResumen}
                 readOnly={!isCM}
               />
@@ -2147,22 +2200,25 @@ export default function OndaExpansivaApp() {
                 onDateChange={handleConclusionDateChange}
                 onDraftChange={setBorradorConclusiones}
                 onSave={handleSaveConclusiones}
+                readOnly={!isCM}
               />
             )}
-          </>
+          </div>
         )}
 
         {vista === "registro" && (
-          <RegistroForm
-            form={form}
-            handleChange={handleChange}
-            handleSubmit={handleSubmit}
-            catalogos={catalogos}
-          />
+          <div className="dashboard-shell">
+            <RegistroForm
+              form={form}
+              handleChange={handleChange}
+              handleSubmit={handleSubmit}
+              catalogos={catalogos}
+            />
+          </div>
         )}
 
         {vista === "tabla" && (
-          <>
+          <div className="dashboard-shell grid gap-5 sm:gap-6">
             <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem]">
               <div className="mb-4">
                 <h2 className="text-xl font-black sm:text-2xl">Consolidado</h2>
@@ -2191,97 +2247,23 @@ export default function OndaExpansivaApp() {
             </section>
 
             <ConsolidadoTable rows={filteredRows} removeRow={deleteRow} />
-          </>
+          </div>
         )}
 
         {vista === "configuracion" && (
-          <ConfiguracionSection
-            catalogos={catalogos}
-            onRename={renameCatalogItem}
-            onAdd={addCatalogItem}
-            onRemove={removeCatalogItem}
-            onReset={resetCatalogos}
-            configMessage={configMessage}
-          />
+          <div className="dashboard-shell">
+            <ConfiguracionSection
+              catalogos={catalogos}
+              onRename={renameCatalogItem}
+              onAdd={addCatalogItem}
+              onRemove={removeCatalogItem}
+              onReset={resetCatalogos}
+              configMessage={configMessage}
+            />
+          </div>
         )}
       </main>
 
-      <style>{`
-        .input {
-          width: 100%;
-          min-height: 46px;
-          border-radius: 1rem;
-          border: 1px solid rgb(226 232 240);
-          background: rgb(248 250 252);
-          padding: .7rem .85rem;
-          font-size: .875rem;
-          outline: none;
-          transition: all .18s ease;
-        }
-
-        .input:focus {
-          border-color: rgb(15 23 42);
-          background: white;
-          box-shadow: 0 0 0 4px rgb(226 232 240 / .8);
-        }
-
-        .btn-tab {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: .5rem;
-          border-radius: 1rem;
-          border: 1px solid rgb(226 232 240);
-          background: white;
-          padding: .7rem .95rem;
-          font-size: .875rem;
-          font-weight: 800;
-          color: rgb(71 85 105);
-          transition: all .18s ease;
-          min-height: 44px;
-        }
-
-        .btn-tab:hover {
-          transform: translateY(-1px);
-          border-color: rgb(148 163 184);
-        }
-
-        .btn-tab-active {
-          background: rgb(15 23 42);
-          color: white;
-          border-color: rgb(15 23 42);
-        }
-
-        .btn-primary {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: .5rem;
-          border-radius: 1rem;
-          background: rgb(37 99 235);
-          padding: .7rem .95rem;
-          font-size: .875rem;
-          font-weight: 900;
-          color: white;
-          box-shadow: 0 10px 22px rgb(37 99 235 / .18);
-          min-height: 44px;
-        }
-
-        .btn-danger {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: .5rem;
-          border-radius: 1rem;
-          background: #d7193f;
-          padding: .7rem 1rem;
-          font-size: .875rem;
-          font-weight: 900;
-          color: white;
-          box-shadow: 0 10px 22px rgba(215, 25, 63, .18);
-          min-height: 46px;
-        }
-      `}</style>
     </div>
   );
 }

@@ -1,32 +1,20 @@
-import React, { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { useAuth, VISTA_TOKEN } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
+import { VISTA_TOKEN } from "../context/authCore";
 import Dashboard from "../components/Dashboard";
 
 export default function VistaPage() {
   const { token } = useParams();
-  const { loginWithToken, isAuthenticated, isVisualizador } = useAuth();
-  const [valid, setValid] = useState(null); // null=loading, true=ok, false=invalid
+  const { loginWithToken } = useAuth();
+  const valid = token === VISTA_TOKEN;
 
   useEffect(() => {
-    if (token) {
-      const success = loginWithToken(token);
-      setValid(success);
-    } else {
-      setValid(false);
+    if (valid) {
+      loginWithToken(token);
     }
-  }, [token]);
+  }, [loginWithToken, token, valid]);
 
-  // Cargando
-  if (valid === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500" />
-      </div>
-    );
-  }
-
-  // Token inválido
   if (!valid) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
@@ -45,6 +33,5 @@ export default function VistaPage() {
     );
   }
 
-  // Token válido → mostrar dashboard en modo visualizador
   return <Dashboard />;
 }

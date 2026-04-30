@@ -1,4 +1,3 @@
-import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -11,13 +10,8 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
-          {/* Ruta pública: Login para CM */}
           <Route path="/login" element={<LoginPage />} />
-
-          {/* Ruta pública: Vista con token para cliente */}
           <Route path="/vista/:token" element={<VistaPage />} />
-
-          {/* Ruta protegida: Dashboard para CM autenticado */}
           <Route
             path="/dashboard"
             element={
@@ -26,8 +20,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Redirección por defecto al login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
