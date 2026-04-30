@@ -3,14 +3,11 @@ import { supabase } from "../lib/supabaseClient";
 
 const AuthContext = createContext();
 
-// ⚠️ CAMBIA ESTE TOKEN por uno secreto que solo tú conozcas
-// Puedes generarlo en: https://www.uuidgenerator.net/
-// Ejemplo: "vista-onda-2026-xK9mP3qL7nR2"
 export const VISTA_TOKEN = import.meta.env.VITE_VISTA_TOKEN || "vista-onda-2026-token-secreto";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // "cm" | "visualizador" | null
+  const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -27,7 +24,7 @@ export const AuthProvider = ({ children }) => {
 
         if (data?.session?.user) {
           setUser(data.session.user);
-          await fetchUserRole(data.session.user.id);
+          fetchUserRole(data.session.user.id);
         }
 
         setLoading(false);
@@ -44,7 +41,7 @@ export const AuthProvider = ({ children }) => {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setUser(session.user);
-        await fetchUserRole(session.user.id);
+        fetchUserRole(session.user.id);
       } else {
         setUser(null);
         setRole(null);
@@ -55,30 +52,38 @@ export const AuthProvider = ({ children }) => {
     return () => subscription?.unsubscribe();
   }, []);
 
-  const fetchUserRole = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", userId)
-        .single();
-
-      if (error) {
-        console.error("Error obteniendo rol:", error);
-        setRole("cm");
-        return;
-      }
-
-      setRole(data?.role || "cm");
-    } catch (err) {
-      console.error("Error fetching role:", err);
-      setRole("cm");
-    }
+  const fetchUserRole = (userId) => {
+    console.log("Fetching role for user:", userId);
+    
+    // Por ahora usamos rol por defecto para evitar bloqueos
+    setRole("cm");
+    console.log("Using default role: cm");
+    
+    // Query en background (no bloqueante)
+    supabase
+      .from("users")
+      .select("role")
+      .eq("id", userId)
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error obteniendo rol:", error);
+          return;
+        }
+        console.log("Role fetched from DB:", data?.role);
+        if (data?.role) {
+          setRole(data.role);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching role:", err);
+      });
   };
 
-  // Login para CM con email + contraseña
   const login = async (email, password) => {
     setError("");
+    console.log("Login attempt for:", email);
+    
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -86,6 +91,8 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (error) {
+        console.error("Supabase auth error:", error);
+        
         if (error.message.includes("Invalid login credentials")) {
           setError("Email o contraseña incorrectos.");
         } else {
@@ -94,17 +101,22 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: error.message };
       }
 
+      console.log("Auth successful, user:", data.user.email);
       setUser(data.user);
-      await fetchUserRole(data.user.id);
+      
+      // Fetch role non-blocking
+      fetchUserRole(data.user.id);
+
+      console.log("Login complete, success: true");
       return { success: true };
     } catch (err) {
+      console.error("Login exception:", err);
       const message = err.message || "Error al iniciar sesión";
       setError(message);
       return { success: false, error: message };
     }
   };
 
-  // Acceso visualizador con token (sin auth)
   const loginWithToken = (token) => {
     if (token === VISTA_TOKEN) {
       setRole("visualizador");
@@ -117,7 +129,6 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setError("");
 
-    // Si es visualizador por token, solo limpiamos el estado
     if (user?.id === "vista-token") {
       setUser(null);
       setRole(null);

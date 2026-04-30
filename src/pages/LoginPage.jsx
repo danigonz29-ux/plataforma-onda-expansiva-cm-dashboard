@@ -1,22 +1,38 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { login, error } = useAuth();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    await login(email, password);
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setIsLoading(true);
+
+  try {
+    const result = await login(email, password);
+    
+    console.log("Login result:", result); // Debug
+    
+    if (result && result.success) {
+      navigate("/dashboard");
+    } else {
+      console.error("Login failed - no success flag");
+    }
+  } catch (err) {
+    console.error("Login error caught:", err);
+  } finally {
     setIsLoading(false);
-  };
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center px-4">
-      {/* Fondo decorativo */}
+      {/* Decorative elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
@@ -44,6 +60,7 @@ export default function LoginPage() {
                 Email
               </label>
               <input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -58,6 +75,7 @@ export default function LoginPage() {
                 Contraseña
               </label>
               <input
+                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
