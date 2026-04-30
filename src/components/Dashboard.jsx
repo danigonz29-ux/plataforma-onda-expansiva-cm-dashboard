@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "../context/AuthContext";
 import {
   Area,
   AreaChart,
@@ -171,8 +172,9 @@ function rowFromDb(row) {
   };
 }
 
-function rowToDb(row, includeId = false) {
-  const payload = {
+function rowToDb(row) {
+  return {
+    id: row.id,
     fecha: row.fecha,
     responsable: row.responsable,
     accion: row.accion,
@@ -196,12 +198,6 @@ function rowToDb(row, includeId = false) {
     seguidores: toNumber(row.seguidores),
     notas: row.notas,
   };
-
-  if (includeId && row.id) {
-    payload.id = row.id;
-  }
-
-  return payload;
 }
 
 function pautaFromDb(row) {
@@ -218,8 +214,9 @@ function pautaFromDb(row) {
   };
 }
 
-function pautaToDb(row, includeId = false) {
-  const payload = {
+function pautaToDb(row) {
+  return {
+    id: row.id,
     fecha: row.fecha,
     url: row.url,
     medio: row.medio,
@@ -229,12 +226,6 @@ function pautaToDb(row, includeId = false) {
     ctr: toNumber(row.ctr),
     visualizaciones: toNumber(row.visualizaciones),
   };
-
-  if (includeId && row.id) {
-    payload.id = row.id;
-  }
-
-  return payload;
 }
 
 function catalogosFromDb(rows) {
@@ -612,6 +603,15 @@ function IconSettings({ className }) {
   );
 }
 
+function IconX({ className }) {
+  return (
+    <IconBase className={className}>
+      <path d="M18 6L6 18" />
+      <path d="M6 6l12 12" />
+    </IconBase>
+  );
+}
+
 function IconForNetwork({ red }) {
   const className = "inline-flex h-4 w-4 shrink-0 items-center justify-center font-black";
 
@@ -883,7 +883,7 @@ function DirectCard({ title, icon, labelA, valueA, labelB, valueB, footerLabel, 
   );
 }
 
-function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDelete, resumen }) {
+function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDelete, resumen, readOnly = false }) {
   return (
     <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
       <SectionTitle icon={<IconMegaphone className="h-5 w-5" />} title="Contenido Pautado" />
@@ -897,37 +897,34 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
         <MiniKpi title="Visualizaciones" value={fmt(resumen.visualizaciones)} icon={<IconEye className="h-4 w-4" />} />
       </div>
 
-      <div className="mt-8 rounded-[1.5rem] bg-slate-50 p-4 sm:rounded-[1.8rem]">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="rounded-xl bg-white p-3 text-[#d7193f] shadow-sm">
-            <IconLink className="h-5 w-5" />
+      {!readOnly && (
+        <div className="mt-8 rounded-[1.5rem] bg-slate-50 p-4 sm:rounded-[1.8rem]">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="rounded-xl bg-white p-3 text-[#d7193f] shadow-sm">
+              <IconLink className="h-5 w-5" />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 sm:text-2xl">Links</h3>
           </div>
-          <h3 className="text-xl font-black text-slate-900 sm:text-2xl">Links</h3>
+
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[150px_2fr_160px_130px_130px_150px_110px_160px_auto]">
+            <input type="date" value={form.fecha} onChange={(event) => onChange("fecha", event.target.value)} className="input" />
+            <input value={form.url} onChange={(event) => onChange("url", event.target.value)} className="input lg:col-span-2 xl:col-span-1" placeholder="https://..." />
+            <select value={form.medio} onChange={(event) => onChange("medio", event.target.value)} className="input">
+              {catalogos.mediosPauta.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+            <input type="number" min="0" value={form.alcance} onChange={(event) => onChange("alcance", event.target.value)} className="input" placeholder="Alcance" />
+            <input type="number" min="0" value={form.costo} onChange={(event) => onChange("costo", event.target.value)} className="input" placeholder="Costo" />
+            <input type="number" min="0" value={form.interacciones} onChange={(event) => onChange("interacciones", event.target.value)} className="input" placeholder="Interacciones" />
+            <input type="number" min="0" step="0.1" value={form.ctr} onChange={(event) => onChange("ctr", event.target.value)} className="input" placeholder="CTR" />
+            <input type="number" min="0" value={form.visualizaciones} onChange={(event) => onChange("visualizaciones", event.target.value)} className="input" placeholder="Visualizaciones" />
+            <button type="button" onClick={onAdd} className="btn-danger">
+              <IconPlus className="h-4 w-4" /> Agregar
+            </button>
+          </div>
         </div>
-
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[150px_2fr_160px_130px_130px_150px_110px_160px_auto]">
-          <input type="date" value={form.fecha} onChange={(event) => onChange("fecha", event.target.value)} className="input" />
-          <input value={form.url} onChange={(event) => onChange("url", event.target.value)} className="input lg:col-span-2 xl:col-span-1" placeholder="https://..." />
-
-          <select value={form.medio} onChange={(event) => onChange("medio", event.target.value)} className="input">
-            {catalogos.mediosPauta.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-
-          <input type="number" min="0" value={form.alcance} onChange={(event) => onChange("alcance", event.target.value)} className="input" placeholder="Alcance" />
-          <input type="number" min="0" value={form.costo} onChange={(event) => onChange("costo", event.target.value)} className="input" placeholder="Costo" />
-          <input type="number" min="0" value={form.interacciones} onChange={(event) => onChange("interacciones", event.target.value)} className="input" placeholder="Interacciones" />
-          <input type="number" min="0" step="0.1" value={form.ctr} onChange={(event) => onChange("ctr", event.target.value)} className="input" placeholder="CTR" />
-          <input type="number" min="0" value={form.visualizaciones} onChange={(event) => onChange("visualizaciones", event.target.value)} className="input" placeholder="Visualizaciones" />
-
-          <button type="button" onClick={onAdd} className="btn-danger">
-            <IconPlus className="h-4 w-4" /> Agregar
-          </button>
-        </div>
-      </div>
+      )}
 
       <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200">
         <table className="w-full min-w-[1260px] text-left text-sm">
@@ -941,14 +938,13 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
               <th className="px-4 py-4 text-right">Interacciones</th>
               <th className="px-4 py-4 text-right">CTR</th>
               <th className="px-4 py-4 text-right">Visualizaciones</th>
-              <th className="px-4 py-4"></th>
+              {!readOnly && <th className="px-4 py-4"></th>}
             </tr>
           </thead>
-
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-sm font-bold text-slate-400">
+                <td colSpan={readOnly ? 8 : 9} className="px-4 py-10 text-center text-sm font-bold text-slate-400">
                   No hay links registrados.
                 </td>
               </tr>
@@ -971,11 +967,13 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
                   <td className="px-4 py-4 text-right font-semibold">{fmt(row.interacciones)}</td>
                   <td className="px-4 py-4 text-right font-semibold">{fmtPct(row.ctr)}</td>
                   <td className="px-4 py-4 text-right font-semibold">{fmt(row.visualizaciones)}</td>
-                  <td className="px-4 py-4 text-right">
-                    <button type="button" onClick={() => onDelete(row.id)} className="inline-flex items-center rounded-xl p-2 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                      <IconTrash className="h-4 w-4" />
-                    </button>
-                  </td>
+                  {!readOnly && (
+                    <td className="px-4 py-4 text-right">
+                      <button type="button" onClick={() => onDelete(row.id)} className="inline-flex items-center rounded-xl p-2 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                        <IconTrash className="h-4 w-4" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -1379,6 +1377,7 @@ function CatalogManager({ title, description, items, category, onRename, onAdd, 
 }
 
 export default function OndaExpansivaApp() {
+  const { isCM, isVisualizador, user, logout } = useAuth();
   const [catalogos, setCatalogos] = useState(() => mergeCatalogos(CATALOGOS_BASE));
   const [rows, setRows] = useState([]);
   const [pautaRows, setPautaRows] = useState([]);
@@ -1414,60 +1413,37 @@ export default function OndaExpansivaApp() {
       setIsLoading(true);
       setSyncStatus("");
 
-      try {
-        const [accionesResult, pautaResult, catalogosResult, conclusionesResult] = await Promise.all([
-          supabase.from("acciones").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
-          supabase.from("pauta").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
-          supabase.from("catalogos").select("*").order("categoria", { ascending: true }),
-          supabase.from("conclusiones").select("*").order("fecha", { ascending: true }),
-        ]);
+      const [accionesResult, pautaResult, catalogosResult, conclusionesResult] = await Promise.all([
+        supabase.from("acciones").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
+        supabase.from("pauta").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
+        supabase.from("catalogos").select("*").order("categoria", { ascending: true }),
+        supabase.from("conclusiones").select("*").order("fecha", { ascending: true }),
+      ]);
 
-        // Diagnóstico detallado por tabla
-        const errors = [];
-        if (accionesResult.error) errors.push(`acciones: ${accionesResult.error.message} (${accionesResult.error.code})`);
-        if (pautaResult.error) errors.push(`pauta: ${pautaResult.error.message} (${pautaResult.error.code})`);
-        if (catalogosResult.error) errors.push(`catalogos: ${catalogosResult.error.message} (${catalogosResult.error.code})`);
-        if (conclusionesResult.error) errors.push(`conclusiones: ${conclusionesResult.error.message} (${conclusionesResult.error.code})`);
+      const error =
+        accionesResult.error ||
+        pautaResult.error ||
+        catalogosResult.error ||
+        conclusionesResult.error;
 
-        if (errors.length > 0) {
-          if (mounted) {
-            setSyncStatus(`Error en tablas: ${errors.join(" | ")}`);
-            setIsLoading(false);
-          }
-          return;
-        }
-
-        // Detectar posible problema de RLS (tablas vacías sin error)
-        const warnings = [];
-        if (safeArray(accionesResult.data).length === 0) warnings.push("acciones");
-        if (safeArray(pautaResult.data).length === 0) warnings.push("pauta");
-        if (safeArray(catalogosResult.data).length === 0) warnings.push("catalogos");
-
-        const nextCatalogos = catalogosFromDb(catalogosResult.data);
-
+      if (error) {
         if (mounted) {
-          setCatalogos(nextCatalogos);
-          setRows(safeArray(accionesResult.data).map(rowFromDb));
-          setPautaRows(safeArray(pautaResult.data).map(pautaFromDb));
-          setConclusionesPorFecha(conclusionesFromDb(conclusionesResult.data));
-          setForm(createForm(nextCatalogos));
-          setPautaForm(createPautaForm(nextCatalogos));
-          setIsLoading(false);
-
-          if (warnings.length > 0 && warnings.length >= 3) {
-            setSyncStatus(
-              `Advertencia: Las tablas [${warnings.join(", ")}] están vacías. ` +
-              `Si ya registraste datos, verifica que RLS (Row Level Security) esté desactivado ` +
-              `o que tengas policies configuradas en Supabase.`
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Error loading dashboard:", err);
-        if (mounted) {
-          setSyncStatus(`Error de conexión con Supabase: ${err.message}. Verifica VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.`);
+          setSyncStatus(`Error cargando datos de Supabase: ${error.message}`);
           setIsLoading(false);
         }
+        return;
+      }
+
+      const nextCatalogos = catalogosFromDb(catalogosResult.data);
+
+      if (mounted) {
+        setCatalogos(nextCatalogos);
+        setRows(safeArray(accionesResult.data).map(rowFromDb));
+        setPautaRows(safeArray(pautaResult.data).map(pautaFromDb));
+        setConclusionesPorFecha(conclusionesFromDb(conclusionesResult.data));
+        setForm(createForm(nextCatalogos));
+        setPautaForm(createPautaForm(nextCatalogos));
+        setIsLoading(false);
       }
     }
 
@@ -1592,31 +1568,16 @@ export default function OndaExpansivaApp() {
   async function persistCatalogos(nextCatalogos) {
     setCatalogos(nextCatalogos);
 
-    try {
-      const { error } = await supabase
-        .from("catalogos")
-        .upsert(catalogosToDb(nextCatalogos), { onConflict: "categoria" });
+    const { error } = await supabase
+      .from("catalogos")
+      .upsert(catalogosToDb(nextCatalogos), { onConflict: "categoria" });
 
-      if (error) {
-        console.error("Supabase catalogos upsert error:", error);
-
-        if (error.code === "42501") {
-          setSyncStatus("Error de permisos: RLS activo en 'catalogos'. Desactiva RLS o agrega policies.");
-        } else if (error.code === "23505" || error.message.includes("unique") || error.message.includes("duplicate")) {
-          setSyncStatus("Error: La columna 'categoria' necesita un constraint UNIQUE en Supabase.");
-        } else {
-          setSyncStatus(`Error guardando catálogos: ${error.message} (${error.code || "N/A"})`);
-        }
-
-        return false;
-      }
-
-      return true;
-    } catch (err) {
-      console.error("Unexpected catalogos error:", err);
-      setSyncStatus(`Error inesperado en catálogos: ${err.message}`);
+    if (error) {
+      setSyncStatus(`Error guardando catálogos: ${error.message}`);
       return false;
     }
+
+    return true;
   }
 
   async function deleteRow(id) {
@@ -1830,42 +1791,30 @@ export default function OndaExpansivaApp() {
 
     const next = { ...conclusionesPorFecha };
 
-    try {
-      if (items.length) {
-        const { error } = await supabase
-          .from("conclusiones")
-          .upsert({ fecha: fechaConclusiones, conclusiones: items }, { onConflict: "fecha" });
+    if (items.length) {
+      const { error } = await supabase
+        .from("conclusiones")
+        .upsert({ fecha: fechaConclusiones, conclusiones: items }, { onConflict: "fecha" });
 
-        if (error) {
-          console.error("Supabase conclusiones upsert error:", error);
-
-          if (error.message.includes("unique") || error.message.includes("duplicate") || error.code === "23505") {
-            setSyncStatus("Error: La columna 'fecha' en tabla 'conclusiones' necesita un constraint UNIQUE.");
-          } else {
-            setSyncStatus(`Error guardando conclusiones: ${error.message} (${error.code || "N/A"})`);
-          }
-
-          return;
-        }
-
-        next[fechaConclusiones] = items;
-      } else {
-        const { error } = await supabase.from("conclusiones").delete().eq("fecha", fechaConclusiones);
-
-        if (error) {
-          setSyncStatus(`Error eliminando conclusiones: ${error.message}`);
-          return;
-        }
-
-        delete next[fechaConclusiones];
+      if (error) {
+        setSyncStatus(`Error guardando conclusiones: ${error.message}`);
+        return;
       }
 
-      setConclusionesPorFecha(next);
-      setSyncStatus("Conclusiones guardadas correctamente.");
-    } catch (err) {
-      console.error("Unexpected conclusiones error:", err);
-      setSyncStatus(`Error inesperado: ${err.message}`);
+      next[fechaConclusiones] = items;
+    } else {
+      const { error } = await supabase.from("conclusiones").delete().eq("fecha", fechaConclusiones);
+
+      if (error) {
+        setSyncStatus(`Error eliminando conclusiones: ${error.message}`);
+        return;
+      }
+
+      delete next[fechaConclusiones];
     }
+
+    setConclusionesPorFecha(next);
+    setSyncStatus("Conclusiones guardadas correctamente.");
   }
 
   function handleVistaChange(nextVista) {
@@ -1893,10 +1842,10 @@ export default function OndaExpansivaApp() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setSyncStatus("");
 
     const newRow = {
       ...form,
+      id: uid(),
       alcance: toNumber(form.alcance),
       meGusta: toNumber(form.meGusta),
       comentarios: toNumber(form.comentarios),
@@ -1906,39 +1855,24 @@ export default function OndaExpansivaApp() {
       seguidores: toNumber(form.seguidores),
     };
 
-    try {
-      const { data, error } = await supabase
-        .from("acciones")
-        .insert(rowToDb(newRow))
-        .select()
-        .single();
+    const { data, error } = await supabase.from("acciones").insert(rowToDb(newRow)).select().single();
 
-      if (error) {
-        console.error("Supabase insert error:", error);
-        setSyncStatus(`Error guardando acción: ${error.message} (código: ${error.code || "N/A"})`);
-        return;
-      }
-
-      if (!data) {
-        setSyncStatus("Error: Supabase no retornó datos. Verifica permisos RLS en la tabla 'acciones'.");
-        return;
-      }
-
-      setRows((prev) => [rowFromDb(data), ...prev]);
-      setForm(createForm(catalogos));
-      setVista("dashboard");
-      setSyncStatus("Acción guardada correctamente.");
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      setSyncStatus(`Error inesperado: ${err.message}`);
+    if (error) {
+      setSyncStatus(`Error guardando acción: ${error.message}`);
+      return;
     }
+
+    setRows((prev) => [rowFromDb(data), ...prev]);
+    setForm(createForm(catalogos));
+    setVista("dashboard");
+    setSyncStatus("Acción guardada correctamente.");
   }
 
   async function handleAddPauta() {
     if (!pautaForm.url.trim()) return;
-    setSyncStatus("");
 
     const newRow = {
+      id: uid(),
       fecha: pautaForm.fecha || today(),
       url: pautaForm.url.trim(),
       medio: pautaForm.medio,
@@ -1949,31 +1883,16 @@ export default function OndaExpansivaApp() {
       visualizaciones: toNumber(pautaForm.visualizaciones),
     };
 
-    try {
-      const { data, error } = await supabase
-        .from("pauta")
-        .insert(pautaToDb(newRow))
-        .select()
-        .single();
+    const { data, error } = await supabase.from("pauta").insert(pautaToDb(newRow)).select().single();
 
-      if (error) {
-        console.error("Supabase pauta insert error:", error);
-        setSyncStatus(`Error guardando pauta: ${error.message} (código: ${error.code || "N/A"})`);
-        return;
-      }
-
-      if (!data) {
-        setSyncStatus("Error: Supabase no retornó datos. Verifica permisos RLS en la tabla 'pauta'.");
-        return;
-      }
-
-      setPautaRows((prev) => [pautaFromDb(data), ...prev]);
-      setPautaForm(createPautaForm(catalogos));
-      setSyncStatus("Contenido pautado guardado correctamente.");
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      setSyncStatus(`Error inesperado: ${err.message}`);
+    if (error) {
+      setSyncStatus(`Error guardando pauta: ${error.message}`);
+      return;
     }
+
+    setPautaRows((prev) => [pautaFromDb(data), ...prev]);
+    setPautaForm(createPautaForm(catalogos));
+    setSyncStatus("Contenido pautado guardado correctamente.");
   }
 
   const clearDateFilters = () => {
@@ -2009,25 +1928,43 @@ export default function OndaExpansivaApp() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+              {/* Dashboard - visible para todos */}
               <button type="button" onClick={() => handleVistaChange("dashboard")} className={`btn-tab ${vista === "dashboard" ? "btn-tab-active" : ""}`}>
                 <IconBarChart className="h-4 w-4" /> Dashboard
               </button>
 
-              <button type="button" onClick={() => handleVistaChange("registro")} className={`btn-tab ${vista === "registro" ? "btn-tab-active" : ""}`}>
-                <IconPlus className="h-4 w-4" /> Registrar
-              </button>
+              {/* Solo CM */}
+              {isCM && (
+                <>
+                  <button type="button" onClick={() => handleVistaChange("registro")} className={`btn-tab ${vista === "registro" ? "btn-tab-active" : ""}`}>
+                    <IconPlus className="h-4 w-4" /> Registrar
+                  </button>
 
-              <button type="button" onClick={() => handleVistaChange("tabla")} className={`btn-tab ${vista === "tabla" ? "btn-tab-active" : ""}`}>
-                <IconClipboard className="h-4 w-4" /> Consolidado
-              </button>
+                  <button type="button" onClick={() => handleVistaChange("tabla")} className={`btn-tab ${vista === "tabla" ? "btn-tab-active" : ""}`}>
+                    <IconClipboard className="h-4 w-4" /> Consolidado
+                  </button>
 
-              <button type="button" onClick={() => handleVistaChange("configuracion")} className={`btn-tab ${vista === "configuracion" ? "btn-tab-active" : ""}`}>
-                <IconSettings className="h-4 w-4" /> Configuración
-              </button>
+                  <button type="button" onClick={() => handleVistaChange("configuracion")} className={`btn-tab ${vista === "configuracion" ? "btn-tab-active" : ""}`}>
+                    <IconSettings className="h-4 w-4" /> Configuración
+                  </button>
 
-              <button type="button" onClick={handleCsvExport} className="btn-primary">
-                <IconDownload className="h-4 w-4" /> CSV
-              </button>
+                  <button type="button" onClick={handleCsvExport} className="btn-primary">
+                    <IconDownload className="h-4 w-4" /> CSV
+                  </button>
+                </>
+              )}
+
+              {/* Botón logout — solo para CM autenticado */}
+              {isCM && (
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="btn-tab text-red-600 hover:bg-red-50 hover:border-red-200"
+                  title={`Salir (${user?.email || ""})`}
+                >
+                  <IconX className="h-4 w-4" /> Salir
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2187,10 +2124,11 @@ export default function OndaExpansivaApp() {
                 rows={filteredPautaRows}
                 form={pautaForm}
                 catalogos={catalogos}
-                onChange={handlePautaChange}
-                onAdd={handleAddPauta}
-                onDelete={deletePautaRow}
+                onChange={isCM ? handlePautaChange : () => {}}
+                onAdd={isCM ? handleAddPauta : () => {}}
+                onDelete={isCM ? deletePautaRow : () => {}}
                 resumen={pautaResumen}
+                readOnly={!isCM}
               />
             )}
 
