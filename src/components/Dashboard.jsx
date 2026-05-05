@@ -125,6 +125,8 @@ function createForm(catalogos = CATALOGOS_BASE) {
     notas: "",
     esVideo: false,
     reproducciones: "",
+    screenshotDriveId: "",
+    screenshotPath: "",
     screenshotUrl: "",
   };
 }
@@ -174,6 +176,8 @@ function rowFromDb(row) {
     notas: row.notas || "",
     esVideo: row.es_video || false,
     reproducciones: toNumber(row.reproducciones),
+    screenshotDriveId: row.screenshot_drive_id || "",
+    screenshotPath: row.screenshot_path || "",
     screenshotUrl: row.screenshot_url || "",
   };
 }
@@ -205,6 +209,8 @@ function rowToDb(row) {
     notas: row.notas,
     es_video: row.esVideo || false,
     reproducciones: toNumber(row.reproducciones),
+    screenshot_drive_id: row.screenshotDriveId || "",
+    screenshot_path: row.screenshotPath || "",
     screenshot_url: row.screenshotUrl || "",
   };
 }
@@ -1885,19 +1891,42 @@ useEffect(() => {
 
   async function handleSubmit(payload = form) {
     let screenshotUrl = "";
+    let screenshotDriveId = "";
+    let screenshotPath = "";
     
-    // Si hay screenshot (File), convertir a Base64
+    // Si hay screenshot (File), subir a Supabase Storage
     if (payload.screenshot instanceof File) {
       try {
-        const reader = new FileReader();
-        screenshotUrl = await new Promise((resolve, reject) => {
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(payload.screenshot);
-        });
+        // Generar nombre único del archivo
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(2, 8);
+        const fileExt = payload.screenshot.name.split('.').pop() || 'jpg';
+        const fileName = `${timestamp}-${randomStr}.${fileExt}`;
+        const filePath = `${payload.id}/${fileName}`;
+        
+        // Subir archivo a Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('screenshots')
+          .upload(filePath, payload.screenshot, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(`Error al subir screenshot: ${uploadError.message}`);
+        }
+
+        // Obtener URL pública del archivo
+        const { data: urlData } = supabase.storage
+          .from('screenshots')
+          .getPublicUrl(filePath);
+
+        screenshotUrl = urlData.publicUrl;
+        screenshotDriveId = uploadData.id;
+        screenshotPath = filePath;
       } catch (err) {
         console.error("Error al procesar screenshot:", err);
-        setSyncStatus("Error procesando la imagen. Por favor intenta de nuevo.");
+        setSyncStatus(`Error al guardar la imagen: ${err.message}`);
         return;
       }
     }
@@ -1914,6 +1943,8 @@ useEffect(() => {
       seguidores: toNumber(payload.seguidores),
       reproducciones: toNumber(payload.reproducciones),
       screenshotUrl,
+      screenshotDriveId,
+      screenshotPath,
       screenshot: undefined, // No guardar el File
     };
 
