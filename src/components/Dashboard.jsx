@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../context/useAuth";
+import { gapi } from "gapi-script";
 import {
   Area,
   AreaChart,
@@ -60,6 +61,19 @@ const CONTACTO_DIRECTO_BASE = {
   diasCampana: 0,
   sms: { enviosDiarios: 0, frecuencia: "", total: 0, costoTotal: 0 },
   llamadas: { realizadas: 0, frecuencia: "", total: 0, costoTotal: 0 },
+};
+
+const CLIENT_ID = "TU_CLIENT_ID.apps.googleusercontent.com";
+const API_KEY = "TU_API_KEY";
+const SCOPES = "https://www.googleapis.com/auth/drive.file";
+
+const DRIVE_FOLDERS = {
+  "CM 1": "1Ns5Up0BoY0-eWXIjnpF9_hkdmP0svBdn",
+  "CM 2": "12EeeDdIyu4vJb5DENoo8ACTiAzot4fjF",
+  "CM 3": "1fD6NZpSsCzGliKcNhgg8lpGojbDtFqh5",
+  "CM 4": "1wbCmf8Ys8Wpe36mc8jpuBPWxGeCfeYye",
+  "CM 5": "1c5_b8CIQrIqvuc35ekXP_y-tbiXPxaSX",
+  "CM 6": "1viR_CcSLRg3wCZmLT1hTayAxEPxpmCG_",
 };
 
 function uid() {
@@ -230,11 +244,9 @@ function pautaToDb(row) {
 
 function catalogosFromDb(rows) {
   const parsed = {};
-
   safeArray(rows).forEach((row) => {
     parsed[row.categoria] = safeArray(row.items);
   });
-
   return mergeCatalogos(parsed);
 }
 
@@ -246,9 +258,7 @@ function catalogosToDb(catalogos) {
 }
 
 function conclusionesFromDb(rows) {
-  return Object.fromEntries(
-    safeArray(rows).map((row) => [row.fecha, safeArray(row.conclusiones)])
-  );
+  return Object.fromEntries(safeArray(rows).map((row) => [row.fecha, safeArray(row.conclusiones)]));
 }
 
 function fmt(value) {
@@ -623,6 +633,70 @@ function IconForNetwork({ red }) {
   return <IconRadio className="h-4 w-4 shrink-0" />;
 }
 
+function EditModal({ open, row, onClose, onSave, catalogos }) {
+  const [editData, setEditData] = useState(row || {});
+
+  useEffect(() => {
+    setEditData(row || {});
+  }, [row]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 px-4">
+      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
+        <h2 className="mb-4 text-xl font-black">Editar registro</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="text-sm font-bold">
+            Fecha
+            <input type="date" className="input" value={editData.fecha || ""} onChange={(e) => setEditData((d) => ({ ...d, fecha: e.target.value }))} />
+          </label>
+          <label className="text-sm font-bold">
+            Responsable
+            <select className="input" value={editData.responsable || ""} onChange={(e) => setEditData((d) => ({ ...d, responsable: e.target.value }))}>
+              {catalogos.responsables.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-bold">
+            Acción
+            <select className="input" value={editData.accion || ""} onChange={(e) => setEditData((d) => ({ ...d, accion: e.target.value }))}>
+              {catalogos.acciones.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-bold">
+            Red
+            <select className="input" value={editData.red || ""} onChange={(e) => setEditData((d) => ({ ...d, red: e.target.value }))}>
+              {catalogos.redes.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-bold">
+            Medio / Perfil / Grupo
+            <input className="input" value={editData.perfilGrupo || ""} onChange={(e) => setEditData((d) => ({ ...d, perfilGrupo: e.target.value }))} />
+          </label>
+          <label className="text-sm font-bold">
+            Campaña
+            <select className="input" value={editData.tema || ""} onChange={(e) => setEditData((d) => ({ ...d, tema: e.target.value }))}>
+              {catalogos.campanas.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-bold">
+            Alcance
+            <input type="number" className="input" value={editData.alcance ?? 0} onChange={(e) => setEditData((d) => ({ ...d, alcance: e.target.value }))} />
+          </label>
+          <label className="text-sm font-bold">
+            Seguidores
+            <input type="number" className="input" value={editData.seguidores ?? 0} onChange={(e) => setEditData((d) => ({ ...d, seguidores: e.target.value }))} />
+          </label>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" className="btn-tab" onClick={onClose}>Cancelar</button>
+          <button type="button" className="btn-primary" onClick={() => onSave(editData)}>Guardar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function KpiCard({ title, value, subtitle, icon, tone = "dark" }) {
   const tones = {
     dark: "from-slate-950 to-slate-800 text-white",
@@ -635,15 +709,10 @@ function KpiCard({ title, value, subtitle, icon, tone = "dark" }) {
     <div className={`min-w-0 max-w-full rounded-[1.35rem] bg-gradient-to-br ${tones[tone] || tones.dark} p-4 shadow-lg shadow-slate-200 sm:rounded-[1.6rem] sm:p-5`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide opacity-80 sm:text-sm sm:normal-case sm:tracking-normal">
-            {title}
-          </p>
-          <p className="mt-2 break-words text-2xl font-black tracking-tight sm:text-3xl md:text-4xl">
-            {value}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-80 sm:text-sm sm:normal-case sm:tracking-normal">{title}</p>
+          <p className="mt-2 break-words text-2xl font-black tracking-tight sm:text-3xl md:text-4xl">{value}</p>
           <p className="mt-1 text-xs opacity-75">{subtitle}</p>
         </div>
-
         <div className="shrink-0 rounded-2xl bg-white/15 p-3">{icon}</div>
       </div>
     </div>
@@ -660,15 +729,9 @@ function MetricCard({ title, value, subtitle, icon, color }) {
 
   return (
     <div className={`relative min-h-[170px] min-w-0 max-w-full overflow-hidden rounded-[1.35rem] ${colors[color] || colors.red} p-5 shadow-lg shadow-slate-200 sm:rounded-[1.6rem] sm:p-6`}>
-      <div className="absolute right-4 top-4 rounded-xl bg-white/15 p-3 sm:right-5 sm:top-5">
-        {icon}
-      </div>
-      <p className="max-w-[78%] text-[0.68rem] font-black uppercase tracking-[0.2em] opacity-80 sm:text-xs sm:tracking-[0.24em]">
-        {title}
-      </p>
-      <p className="mt-10 break-words text-center text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
-        {value}
-      </p>
+      <div className="absolute right-4 top-4 rounded-xl bg-white/15 p-3 sm:right-5 sm:top-5">{icon}</div>
+      <p className="max-w-[78%] text-[0.68rem] font-black uppercase tracking-[0.2em] opacity-80 sm:text-xs sm:tracking-[0.24em]">{title}</p>
+      <p className="mt-10 break-words text-center text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">{value}</p>
       <div className="my-3 border-t border-dashed border-current opacity-25" />
       <p className="text-sm font-semibold opacity-70">{subtitle}</p>
     </div>
@@ -679,9 +742,7 @@ function MiniKpi({ title, value, icon }) {
   return (
     <div className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500 sm:text-xs">
-          {title}
-        </p>
+        <p className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500 sm:text-xs">{title}</p>
         <div className="rounded-xl bg-white p-2 text-slate-600 shadow-sm">{icon}</div>
       </div>
       <p className="break-words text-xl font-black text-slate-900 sm:text-2xl">{value}</p>
@@ -694,23 +755,15 @@ function OndaHero({ value }) {
     <section className="relative w-full min-w-0 max-w-full overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white px-5 py-8 shadow-sm sm:rounded-[2rem] sm:px-6 sm:py-10 md:px-10 md:py-14">
       <div className="absolute right-[-90px] top-[-90px] h-48 w-48 rounded-full border-[16px] border-red-100 sm:h-52 sm:w-52 sm:border-[18px]" />
       <div className="absolute right-[12px] top-[-62px] h-32 w-32 rounded-full border-[12px] border-yellow-100 sm:right-[60px] sm:top-[-50px] sm:h-36 sm:w-36 sm:border-[14px]" />
-
       <div className="relative flex items-center gap-3">
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-sm bg-[#ffcc13] text-[#7a4100] sm:h-11 sm:w-11">
           <IconZap className="h-6 w-6" />
         </span>
-        <span className="text-xs font-black uppercase tracking-[0.22em] text-[#d7193f] sm:text-sm sm:tracking-[0.3em]">
-          Onda Expansiva
-        </span>
+        <span className="text-xs font-black uppercase tracking-[0.22em] text-[#d7193f] sm:text-sm sm:tracking-[0.3em]">Onda Expansiva</span>
       </div>
-
       <div className="relative mt-8 text-center sm:mt-10">
-        <p className="break-words text-5xl font-black tracking-tight text-[#d7193f] sm:text-6xl md:text-8xl">
-          {fmt(value)}
-        </p>
-        <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500 sm:text-sm md:text-base md:tracking-[0.2em]">
-          Alcance estimado total
-        </p>
+        <p className="break-words text-5xl font-black tracking-tight text-[#d7193f] sm:text-6xl md:text-8xl">{fmt(value)}</p>
+        <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500 sm:text-sm md:text-base md:tracking-[0.2em]">Alcance estimado total</p>
       </div>
     </section>
   );
@@ -721,9 +774,7 @@ function ToggleChip({ active, onClick, label }) {
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex w-full min-w-0 items-center justify-start gap-2 rounded-full px-4 py-2 text-left text-sm font-black transition sm:w-auto sm:justify-center sm:text-center ${
-        active ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-600"
-      }`}
+      className={`inline-flex w-full min-w-0 items-center justify-start gap-2 rounded-full px-4 py-2 text-left text-sm font-black transition sm:w-auto sm:justify-center sm:text-center ${active ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-600"}`}
     >
       <span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-emerald-400" : "bg-slate-300"}`} />
       {label}
@@ -736,9 +787,7 @@ function SectionTitle({ icon, title, badge }) {
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
         <div className="rounded-xl bg-red-50 p-3 text-[#d7193f]">{icon}</div>
-        <h2 className="text-base font-black uppercase tracking-[0.16em] text-slate-900 sm:text-xl sm:tracking-[0.18em]">
-          {title}
-        </h2>
+        <h2 className="text-base font-black uppercase tracking-[0.16em] text-slate-900 sm:text-xl sm:tracking-[0.18em]">{title}</h2>
       </div>
       {badge || null}
     </div>
@@ -766,9 +815,7 @@ function Select({ value, onChange, options }) {
   return (
     <select value={value} onChange={(event) => onChange(event.target.value)} className="input">
       {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
+        <option key={option} value={option}>{option}</option>
       ))}
     </select>
   );
@@ -782,9 +829,7 @@ function FilterSelect({ value, onChange, options }) {
       className="h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-slate-500 focus:bg-white"
     >
       {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
+        <option key={option} value={option}>{option}</option>
       ))}
     </select>
   );
@@ -811,13 +856,10 @@ function ContactoDirectoSection({ data }) {
         badge={
           <div className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 px-4 py-2 text-sm sm:w-auto sm:justify-start">
             <span className="text-slate-500">Días de campaña:</span>
-            <span className="rounded-xl border border-slate-200 px-4 py-1 text-xl font-black text-slate-800 sm:text-2xl">
-              {data.diasCampana}
-            </span>
+            <span className="rounded-xl border border-slate-200 px-4 py-1 text-xl font-black text-slate-800 sm:text-2xl">{data.diasCampana}</span>
           </div>
         }
       />
-
       <div className="grid gap-4 xl:grid-cols-2">
         <DirectCard
           title="SMS"
@@ -831,7 +873,6 @@ function ContactoDirectoSection({ data }) {
           totalLabel="Costo total"
           totalValue={fmtMoney(data.sms.costoTotal)}
         />
-
         <DirectCard
           title="Llamadas Voz"
           icon={<IconPhone className="h-5 w-5" />}
@@ -856,7 +897,6 @@ function DirectCard({ title, icon, labelA, valueA, labelB, valueB, footerLabel, 
         <div className="rounded-2xl bg-red-50 p-3.5 text-[#d7193f]">{icon}</div>
         <h3 className="text-lg font-black text-slate-900 sm:text-xl">{title}</h3>
       </div>
-
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-400 sm:text-sm">{labelA}</p>
@@ -867,14 +907,12 @@ function DirectCard({ title, icon, labelA, valueA, labelB, valueB, footerLabel, 
           <p className="mt-2 break-words text-lg font-black text-[#2b1719] sm:text-xl">{valueB}</p>
         </div>
       </div>
-
       <div className="mt-6 rounded-2xl bg-[#f5f0e8] px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-sm text-slate-500 sm:text-base">{footerLabel}</span>
           <span className="break-words text-xl font-black text-[#2b1719] sm:text-2xl">{footerValue}</span>
         </div>
       </div>
-
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-base text-slate-500 sm:text-lg">{totalLabel}</span>
         <span className="break-words text-xl font-black text-[#2b1719] sm:text-2xl">{totalValue}</span>
@@ -887,7 +925,6 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
   return (
     <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
       <SectionTitle icon={<IconMegaphone className="h-5 w-5" />} title="Contenido Pautado" />
-
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         <MiniKpi title="Piezas pautadas" value={fmt(rows.length)} icon={<IconLink className="h-4 w-4" />} />
         <MiniKpi title="Alcance total" value={fmt(resumen.alcance)} icon={<IconNetwork className="h-4 w-4" />} />
@@ -900,28 +937,21 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
       {!readOnly && (
         <div className="mt-8 rounded-[1.5rem] bg-slate-50 p-4 sm:rounded-[1.8rem]">
           <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-xl bg-white p-3 text-[#d7193f] shadow-sm">
-              <IconLink className="h-5 w-5" />
-            </div>
+            <div className="rounded-xl bg-white p-3 text-[#d7193f] shadow-sm"><IconLink className="h-5 w-5" /></div>
             <h3 className="text-xl font-black text-slate-900 sm:text-2xl">Links</h3>
           </div>
-
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[140px_minmax(180px,1fr)_150px_repeat(5,minmax(105px,1fr))_120px]">
             <input type="date" value={form.fecha} onChange={(event) => onChange("fecha", event.target.value)} className="input" />
             <input type="url" value={form.url} onChange={(event) => onChange("url", event.target.value)} className="input md:col-span-2 xl:col-span-1" placeholder="https://..." />
             <select value={form.medio} onChange={(event) => onChange("medio", event.target.value)} className="input">
-              {catalogos.mediosPauta.map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
+              {catalogos.mediosPauta.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
             <input type="number" min="0" value={form.alcance} onChange={(event) => onChange("alcance", event.target.value)} className="input" placeholder="Alcance" />
             <input type="number" min="0" value={form.costo} onChange={(event) => onChange("costo", event.target.value)} className="input" placeholder="Costo" />
             <input type="number" min="0" value={form.interacciones} onChange={(event) => onChange("interacciones", event.target.value)} className="input" placeholder="Interacciones" />
             <input type="number" min="0" step="0.1" value={form.ctr} onChange={(event) => onChange("ctr", event.target.value)} className="input" placeholder="CTR" />
             <input type="number" min="0" value={form.visualizaciones} onChange={(event) => onChange("visualizaciones", event.target.value)} className="input" placeholder="Visualizaciones" />
-            <button type="button" onClick={onAdd} className="btn-danger whitespace-nowrap">
-              <IconPlus className="h-4 w-4" /> Agregar
-            </button>
+            <button type="button" onClick={onAdd} className="btn-danger whitespace-nowrap"><IconPlus className="h-4 w-4" /> Agregar</button>
           </div>
         </div>
       )}
@@ -944,24 +974,16 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={readOnly ? 8 : 9} className="px-4 py-10 text-center text-sm font-bold text-slate-400">
-                  No hay links registrados.
-                </td>
+                <td colSpan={readOnly ? 8 : 9} className="px-4 py-10 text-center text-sm font-bold text-slate-400">No hay links registrados.</td>
               </tr>
             ) : (
               rows.map((row, index) => (
                 <tr key={row.id} className={`${index % 2 === 0 ? "bg-white" : "bg-slate-50"} border-t border-slate-100`}>
                   <td className="px-4 py-4 font-bold">{row.fecha}</td>
                   <td className="max-w-[360px] truncate px-4 py-4">
-                    <a href={row.url} target="_blank" rel="noreferrer" className="font-medium text-[#d7193f] hover:underline">
-                      {row.url}
-                    </a>
+                    <a href={row.url} target="_blank" rel="noreferrer" className="font-medium text-[#d7193f] hover:underline">{row.url}</a>
                   </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2 font-bold text-slate-700">
-                      {row.medio}
-                    </span>
-                  </td>
+                  <td className="px-4 py-4"><span className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2 font-bold text-slate-700">{row.medio}</span></td>
                   <td className="px-4 py-4 text-right font-semibold">{fmt(row.alcance)}</td>
                   <td className="px-4 py-4 text-right font-semibold">{fmtMoney(row.costo)}</td>
                   <td className="px-4 py-4 text-right font-semibold">{fmt(row.interacciones)}</td>
@@ -984,19 +1006,7 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
   );
 }
 
-function ConclusionesSection({
-  rows,
-  dateStart,
-  dateEnd,
-  selectedDate,
-  draft,
-  openConfig,
-  onToggleConfig,
-  onDateChange,
-  onDraftChange,
-  onSave,
-  readOnly = false,
-}) {
+function ConclusionesSection({ rows, dateStart, dateEnd, selectedDate, draft, openConfig, onToggleConfig, onDateChange, onDraftChange, onSave, readOnly = false }) {
   const label = dateStart && dateEnd ? `Periodo ${dateStart} a ${dateEnd}` : dateStart ? `Desde ${dateStart}` : dateEnd ? `Hasta ${dateEnd}` : "Todas las fechas";
 
   return (
@@ -1004,44 +1014,29 @@ function ConclusionesSection({
       <SectionTitle
         icon={<IconFileText className="h-5 w-5" />}
         title="Conclusiones Generales"
-        badge={!readOnly ? (
-          <button type="button" onClick={onToggleConfig} className="btn-tab">
-            <IconSettings className="h-4 w-4" /> Configurar por fecha
-          </button>
-        ) : null}
+        badge={!readOnly ? <button type="button" onClick={onToggleConfig} className="btn-tab"><IconSettings className="h-4 w-4" /> Configurar por fecha</button> : null}
       />
-
-      <div className="mb-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-500">
-        {label}
-      </div>
-
+      <div className="mb-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-500">{label}</div>
       {!readOnly && openConfig && (
         <div className="mb-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
           <div className="grid gap-4 md:grid-cols-[220px_1fr_auto] md:items-end">
             <Field label="Fecha de conclusiones">
               <input type="date" value={selectedDate} onChange={(event) => onDateChange(event.target.value)} className="input" />
             </Field>
-
             <Field label="Conclusiones">
               <textarea value={draft} onChange={(event) => onDraftChange(event.target.value)} className="input min-h-28" placeholder="Escribe una conclusión por línea para esta fecha." />
             </Field>
-
-            <button type="button" onClick={onSave} className="btn-primary">
-              Guardar conclusiones
-            </button>
+            <button type="button" onClick={onSave} className="btn-primary">Guardar conclusiones</button>
           </div>
         </div>
       )}
-
       <div className="grid gap-4">
         {rows.length === 0 ? (
           <EmptyState text="No hay conclusiones registradas para el periodo seleccionado." />
         ) : (
           rows.map((item, index) => (
             <div key={`${index}-${item}`} className="flex flex-col gap-4 rounded-[1.35rem] border border-slate-200 bg-[#fffdfb] px-5 py-6 sm:flex-row sm:items-center sm:gap-5 sm:rounded-[1.6rem] sm:px-6 sm:py-7">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-lg font-black text-[#d7193f] sm:h-11 sm:w-11 sm:text-xl">
-                {index + 1}
-              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-lg font-black text-[#d7193f] sm:h-11 sm:w-11 sm:text-xl">{index + 1}</div>
               <p className="text-base text-slate-900 sm:text-xl md:text-2xl">{item}</p>
             </div>
           ))
@@ -1051,59 +1046,155 @@ function ConclusionesSection({
   );
 }
 
-function FilterPanel({
-  query,
-  setQuery,
-  responsable,
-  setResponsable,
-  red,
-  setRed,
-  accion,
-  setAccion,
-  catalogos,
-  placeholder,
-  dateStart,
-  setDateStart,
-  dateEnd,
-  setDateEnd,
-  clearDateFilters,
-}) {
+function FilterPanel({ query, setQuery, responsable, setResponsable, red, setRed, accion, setAccion, catalogos, placeholder, dateStart, setDateStart, dateEnd, setDateEnd, clearDateFilters }) {
   return (
     <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem]">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,180px)_minmax(0,180px)_minmax(0,220px)]">
         <div className="relative min-w-0">
-          <span className="pointer-events-none absolute left-4 top-3.5 text-slate-400">
-            <IconSearch className="h-4 w-4" />
-          </span>
-
+          <span className="pointer-events-none absolute left-4 top-3.5 text-slate-400"><IconSearch className="h-4 w-4" /></span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} className="h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none focus:border-slate-500 focus:bg-white" />
         </div>
-
         <FilterSelect value={responsable} onChange={setResponsable} options={["Todos", ...catalogos.responsables]} />
         <FilterSelect value={red} onChange={setRed} options={["Todas", ...catalogos.redes]} />
         <FilterSelect value={accion} onChange={setAccion} options={["Todas", ...catalogos.acciones]} />
       </div>
-
       <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
         <Field label="Fecha inicial">
           <input type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} className="input" />
         </Field>
-
         <Field label="Fecha final">
           <input type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} className="input" />
         </Field>
-
-        <button type="button" onClick={clearDateFilters} className="btn-tab">
-          Limpiar fechas
-        </button>
+        <button type="button" onClick={clearDateFilters} className="btn-tab">Limpiar fechas</button>
       </div>
     </section>
   );
 }
 
 function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
+  const [esVideo, setEsVideo] = useState(false);
+  const [reproducciones, setReproducciones] = useState("");
+  const [screenshot, setScreenshot] = useState(null);
+  const [driveStatus, setDriveStatus] = useState("");
+  const fileInputRef = useRef(null);
+  const previewUrl = useMemo(() => (screenshot ? URL.createObjectURL(screenshot) : null), [screenshot]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  useEffect(() => {
+    function start() {
+      if (!API_KEY || API_KEY === "TU_API_KEY" || !CLIENT_ID || CLIENT_ID === "TU_CLIENT_ID.apps.googleusercontent.com") return;
+      gapi.client.init({
+        apiKey: API_KEY,
+        clientId: CLIENT_ID,
+        scope: SCOPES,
+        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+      });
+    }
+
+    try {
+      gapi.load("client:auth2", start);
+    } catch {
+      setDriveStatus("No se pudo inicializar Google Drive.");
+    }
+  }, []);
+
+  const handleGoogleAuth = async () => {
+    if (!API_KEY || API_KEY === "TU_API_KEY" || !CLIENT_ID || CLIENT_ID === "TU_CLIENT_ID.apps.googleusercontent.com") {
+      setDriveStatus("Configura primero CLIENT_ID y API_KEY de Google Drive.");
+      return false;
+    }
+
+    try {
+      const authInstance = gapi.auth2.getAuthInstance();
+      await authInstance.signIn();
+      setDriveStatus("Google Drive conectado.");
+      return true;
+    } catch {
+      setDriveStatus("No se pudo conectar con Google Drive.");
+      return false;
+    }
+  };
+
+  const uploadToDrive = async (file, responsable) => {
+    const accessToken = gapi.auth.getToken()?.access_token;
+    if (!accessToken) throw new Error("No hay token de Google Drive.");
+
+    const folderId = DRIVE_FOLDERS[responsable] || Object.values(DRIVE_FOLDERS)[0];
+    const metadata = { name: file.name, mimeType: file.type, parents: [folderId] };
+    const driveForm = new FormData();
+
+    driveForm.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+    driveForm.append("file", file);
+
+    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+      method: "POST",
+      headers: new Headers({ Authorization: `Bearer ${accessToken}` }),
+      body: driveForm,
+    });
+
+    if (!res.ok) throw new Error("Error subiendo archivo a Drive.");
+    return res.json();
+  };
+
+  const handleDrop = useCallback((event) => {
+    event.preventDefault();
+    if (event.dataTransfer.files && event.dataTransfer.files[0]) {
+      setScreenshot(event.dataTransfer.files[0]);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((event) => {
+    event.preventDefault();
+  }, []);
+
+  const handleScreenshotChange = (event) => {
+    if (event.target.files && event.target.files[0]) {
+      setScreenshot(event.target.files[0]);
+    }
+  };
+
+  const onSubmit = async (event) => {
+    event.preventDefault();
+
+    let screenshotDriveId = null;
+
+    if (screenshot) {
+      try {
+        const authInstance = gapi.auth2?.getAuthInstance?.();
+        const isSignedIn = authInstance?.isSignedIn?.get?.();
+
+        if (!isSignedIn) {
+          const connected = await handleGoogleAuth();
+          if (!connected) return;
+        }
+
+        const driveRes = await uploadToDrive(screenshot, form.responsable);
+        screenshotDriveId = driveRes.id;
+      } catch (error) {
+        setDriveStatus(error.message || "No se pudo subir la imagen a Drive.");
+        return;
+      }
+    }
+
+    await handleSubmit({
+      ...form,
+      esVideo,
+      reproducciones: esVideo ? reproducciones : "",
+      screenshotDriveId,
+    });
+
+    setEsVideo(false);
+    setReproducciones("");
+    setScreenshot(null);
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
+    <form onSubmit={onSubmit} className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
       <div className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-5">
         <div className="rounded-2xl bg-slate-950 p-3 text-white">
           <IconPlus className="h-5 w-5" />
@@ -1118,31 +1209,24 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         <Field label="Fecha">
           <input type="date" value={form.fecha} onChange={(event) => handleChange("fecha", event.target.value)} className="input" required />
         </Field>
-
         <Field label="Responsable">
           <Select value={form.responsable} onChange={(value) => handleChange("responsable", value)} options={catalogos.responsables} />
         </Field>
-
         <Field label="Acción">
           <Select value={form.accion} onChange={(value) => handleChange("accion", value)} options={catalogos.acciones} />
         </Field>
-
         <Field label="Red / Medio">
           <Select value={form.red} onChange={(value) => handleChange("red", value)} options={catalogos.redes} />
         </Field>
-
         <Field label="Campaña">
           <Select value={form.tema} onChange={(value) => handleChange("tema", value)} options={catalogos.campanas} />
         </Field>
-
         <Field label="Estado en Grupos">
           <Select value={form.estado} onChange={(value) => handleChange("estado", value)} options={catalogos.estadosGrupo} />
         </Field>
-
         <Field label="Hashtag 1">
           <input value={form.hashtag1} onChange={(event) => handleChange("hashtag1", event.target.value)} className="input" placeholder="#" />
         </Field>
-
         <Field label="Hashtag 2">
           <input value={form.hashtag2} onChange={(event) => handleChange("hashtag2", event.target.value)} className="input" placeholder="#" />
         </Field>
@@ -1152,60 +1236,82 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         <Field label="Nombre del medio / perfil / grupo">
           <input value={form.perfilGrupo} onChange={(event) => handleChange("perfilGrupo", event.target.value)} className="input" placeholder="Ej: Semana, El Tiempo, grupo X" required />
         </Field>
-
         <Field label="Perfil de difusión">
           <input value={form.perfilDifusion} onChange={(event) => handleChange("perfilDifusion", event.target.value)} className="input" placeholder="Ej: Perfil A, Influenciador, canal oficial" />
         </Field>
-
         <Field label="Link perfil / grupo">
           <input type="url" value={form.linkPerfil} onChange={(event) => handleChange("linkPerfil", event.target.value)} className="input" placeholder="https://..." />
         </Field>
-
         <Field label="Link de la publicación">
           <input type="url" value={form.linkPublicacion} onChange={(event) => handleChange("linkPublicacion", event.target.value)} className="input" placeholder="https://..." />
         </Field>
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-8">
         <Field label="Alcance">
           <input type="number" min="0" value={form.alcance} onChange={(event) => handleChange("alcance", event.target.value)} className="input" placeholder="0" required />
         </Field>
-
         <Field label="Me gusta">
           <input type="number" min="0" value={form.meGusta} onChange={(event) => handleChange("meGusta", event.target.value)} className="input" placeholder="0" />
         </Field>
-
         <Field label="Comentarios">
           <input type="number" min="0" value={form.comentarios} onChange={(event) => handleChange("comentarios", event.target.value)} className="input" placeholder="0" />
         </Field>
-
         <Field label="Compartidos">
           <input type="number" min="0" value={form.compartidos} onChange={(event) => handleChange("compartidos", event.target.value)} className="input" placeholder="0" />
         </Field>
-
         <Field label="Retweets">
           <input type="number" min="0" value={form.retweets} onChange={(event) => handleChange("retweets", event.target.value)} className="input" placeholder="0" />
         </Field>
-
         <Field label="Historias">
           <input type="number" min="0" value={form.historias} onChange={(event) => handleChange("historias", event.target.value)} className="input" placeholder="0" />
         </Field>
-
         <Field label="Seguidores">
           <input type="number" min="0" value={form.seguidores} onChange={(event) => handleChange("seguidores", event.target.value)} className="input" placeholder="0" />
         </Field>
+        {esVideo && (
+          <Field label="Reproducciones">
+            <input type="number" min="0" value={reproducciones} onChange={(event) => setReproducciones(event.target.value)} className="input" placeholder="0" required />
+          </Field>
+        )}
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <input type="checkbox" id="esVideo" checked={esVideo} onChange={() => setEsVideo((value) => !value)} />
+        <label htmlFor="esVideo" className="font-bold">¿Es video?</label>
+      </div>
+
+      <div
+        className="mt-4 flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 hover:bg-slate-100"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <input type="file" accept="image/*" hidden ref={fileInputRef} onChange={handleScreenshotChange} />
+        {screenshot && previewUrl ? (
+          <div className="flex flex-col items-center">
+            <img src={previewUrl} alt="Screenshot preview" className="mb-2 max-h-32 rounded-lg border" />
+            <span className="text-xs font-bold text-slate-700">{screenshot.name}</span>
+          </div>
+        ) : (
+          <span className="text-slate-400">Arrastra aquí la imagen o haz click para seleccionar un archivo</span>
+        )}
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-[1fr_2fr]">
         <Field label="Mención">
           <input value={form.mencion} onChange={(event) => handleChange("mencion", event.target.value)} className="input" placeholder="@" />
         </Field>
-
         <Field label="Notas">
           <textarea value={form.notas} onChange={(event) => handleChange("notas", event.target.value)} className="input min-h-24" placeholder="Observaciones de la acción" />
         </Field>
       </div>
 
+      {driveStatus && <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700">{driveStatus}</div>}
+
+      <button type="button" onClick={handleGoogleAuth} className="mr-3 mt-5 rounded-2xl bg-blue-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-slate-200 transition hover:scale-[1.01]">
+        Conectar con Google Drive
+      </button>
       <button type="submit" className="mt-5 w-full rounded-2xl bg-slate-950 px-6 py-3 text-sm font-black text-white shadow-lg shadow-slate-200 transition hover:scale-[1.01] sm:w-auto">
         Guardar acción y alimentar dashboard
       </button>
@@ -1213,7 +1319,7 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
   );
 }
 
-function ConsolidadoTable({ rows, removeRow }) {
+function ConsolidadoTable({ rows, removeRow, onEditRow }) {
   return (
     <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1221,12 +1327,10 @@ function ConsolidadoTable({ rows, removeRow }) {
           <h2 className="text-xl font-black sm:text-2xl">Consolidado de acciones</h2>
           <p className="text-sm text-slate-500">Base maestra lista para exportar, auditar o conectar a Looker Studio.</p>
         </div>
-
         <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-700">
           <IconCalendar className="h-4 w-4" /> {fmt(rows.length)} registros
         </div>
       </div>
-
       <div className="-mx-4 overflow-x-auto border-y border-slate-200 sm:mx-0 sm:rounded-2xl sm:border">
         <table className="w-full min-w-[1180px] text-left text-sm">
           <thead>
@@ -1244,13 +1348,10 @@ function ConsolidadoTable({ rows, removeRow }) {
               <th className="px-3 py-3"></th>
             </tr>
           </thead>
-
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-10 text-center text-sm font-bold text-slate-400">
-                  No hay acciones registradas.
-                </td>
+                <td colSpan={11} className="px-4 py-10 text-center text-sm font-bold text-slate-400">No hay acciones registradas.</td>
               </tr>
             ) : (
               rows.map((row, index) => (
@@ -1258,26 +1359,20 @@ function ConsolidadoTable({ rows, removeRow }) {
                   <td className="px-3 py-3 font-bold">{row.fecha}</td>
                   <td className="px-3 py-3">{row.responsable}</td>
                   <td className="px-3 py-3">{row.accion}</td>
-                  <td className="px-3 py-3">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 font-bold">
-                      <IconForNetwork red={row.red} />
-                      {row.red}
-                    </span>
-                  </td>
+                  <td className="px-3 py-3"><span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 font-bold"><IconForNetwork red={row.red} />{row.red}</span></td>
                   <td className="px-3 py-3">{row.perfilGrupo}</td>
                   <td className="px-3 py-3">{row.tema}</td>
                   <td className="px-3 py-3 text-right">{fmt(row.alcance)}</td>
                   <td className="px-3 py-3 text-right text-base font-black text-blue-700">{fmt(getOnda(row))}</td>
                   <td className="px-3 py-3 text-right">{fmt(row.seguidores)}</td>
-                  <td className="px-3 py-3">
-                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">
-                      {row.estado}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="px-3 py-3"><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">{row.estado}</span></td>
+                  <td className="flex justify-end gap-2 px-3 py-3 text-right">
+                    <button type="button" onClick={() => onEditRow?.(row)} className="inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-bold text-blue-400 hover:bg-blue-50 hover:text-blue-600" title="Editar">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4 1a1 1 0 001.213-1.213l1-4a4 4 0 01.828-1.414z" /></svg>
+                      Editar
+                    </button>
                     <button type="button" onClick={() => removeRow(row.id)} className="inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-bold text-slate-400 hover:bg-red-50 hover:text-red-600">
-                      <IconTrash className="h-3.5 w-3.5" />
-                      Eliminar
+                      <IconTrash className="h-3.5 w-3.5" /> Eliminar
                     </button>
                   </td>
                 </tr>
@@ -1308,31 +1403,13 @@ function ConfiguracionSection({ catalogos, onRename, onAdd, onRemove, onReset, c
             <h2 className="text-2xl font-black text-slate-950">Configuración</h2>
             <p className="mt-1 text-sm text-slate-500">Administra los selectores que aparecen en Registrar, filtros y contenido pautado.</p>
           </div>
-
-          <button type="button" onClick={onReset} className="btn-tab">
-            Restaurar base
-          </button>
+          <button type="button" onClick={onReset} className="btn-tab">Restaurar base</button>
         </div>
-
-        {configMessage && (
-          <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700">
-            {configMessage}
-          </div>
-        )}
+        {configMessage && <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700">{configMessage}</div>}
       </div>
-
       <div className="grid gap-5 xl:grid-cols-2">
         {sections.map(([title, description, category]) => (
-          <CatalogManager
-            key={category}
-            title={title}
-            description={description}
-            items={catalogos[category]}
-            category={category}
-            onRename={onRename}
-            onAdd={onAdd}
-            onRemove={onRemove}
-          />
+          <CatalogManager key={category} title={title} description={description} items={catalogos[category]} category={category} onRename={onRename} onAdd={onAdd} onRemove={onRemove} />
         ))}
       </div>
     </section>
@@ -1342,17 +1419,17 @@ function ConfiguracionSection({ catalogos, onRename, onAdd, onRemove, onReset, c
 function CatalogItemEditor({ item, index, category, onRename, onRemove }) {
   const [draft, setDraft] = useState(item);
 
+  useEffect(() => {
+    setDraft(item);
+  }, [item]);
+
   function commitDraft() {
     const nextValue = draft.trim();
-
     if (!nextValue) {
       setDraft(item);
       return;
     }
-
-    if (nextValue !== item) {
-      void onRename(category, index, nextValue);
-    }
+    if (nextValue !== item) void onRename(category, index, nextValue);
   }
 
   return (
@@ -1369,9 +1446,7 @@ function CatalogItemEditor({ item, index, category, onRename, onRemove }) {
         }}
         className="input"
       />
-      <button type="button" onClick={() => onRemove(category, item)} className="rounded-2xl border border-red-100 px-4 py-2 text-sm font-black text-red-600 hover:bg-red-50">
-        Eliminar
-      </button>
+      <button type="button" onClick={() => onRemove(category, item)} className="rounded-2xl border border-red-100 px-4 py-2 text-sm font-black text-red-600 hover:bg-red-50">Eliminar</button>
     </div>
   );
 }
@@ -1385,20 +1460,11 @@ function CatalogManager({ title, description, items, category, onRename, onAdd, 
         <h3 className="text-lg font-black text-slate-950">{title}</h3>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
       </div>
-
       <div className="grid gap-3">
         {items.map((item, index) => (
-          <CatalogItemEditor
-            key={`${category}-${item}-${index}`}
-            item={item}
-            index={index}
-            category={category}
-            onRename={onRename}
-            onRemove={onRemove}
-          />
+          <CatalogItemEditor key={`${category}-${item}-${index}`} item={item} index={index} category={category} onRename={onRename} onRemove={onRemove} />
         ))}
       </div>
-
       <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
         <input value={newItem} onChange={(event) => setNewItem(event.target.value)} className="input" placeholder={`Nuevo valor para ${title.toLowerCase()}`} />
         <button
@@ -1445,6 +1511,7 @@ export default function OndaExpansivaApp() {
 
   const [csvStatus, setCsvStatus] = useState("");
   const [configMessage, setConfigMessage] = useState("");
+  const [editRow, setEditRow] = useState(null);
   const csvTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -1461,11 +1528,7 @@ export default function OndaExpansivaApp() {
         supabase.from("conclusiones").select("*").order("fecha", { ascending: true }),
       ]);
 
-      const error =
-        accionesResult.error ||
-        pautaResult.error ||
-        catalogosResult.error ||
-        conclusionesResult.error;
+      const error = accionesResult.error || pautaResult.error || catalogosResult.error || conclusionesResult.error;
 
       if (error) {
         if (mounted) {
@@ -1497,9 +1560,7 @@ export default function OndaExpansivaApp() {
 
   useEffect(() => {
     return () => {
-      if (csvTimeoutRef.current) {
-        clearTimeout(csvTimeoutRef.current);
-      }
+      if (csvTimeoutRef.current) clearTimeout(csvTimeoutRef.current);
     };
   }, []);
 
@@ -1508,7 +1569,6 @@ export default function OndaExpansivaApp() {
 
     return rows.filter((row) => {
       const searchable = Object.values(row).join(" ").toLowerCase();
-
       return (
         (!q || searchable.includes(q)) &&
         (responsable === "Todos" || row.responsable === responsable) &&
@@ -1521,48 +1581,21 @@ export default function OndaExpansivaApp() {
   }, [rows, query, responsable, red, accion, dateStart, dateEnd]);
 
   const filteredPautaRows = useMemo(
-    () =>
-      pautaRows.filter(
-        (row) =>
-          (!dateStart || String(row.fecha || "") >= dateStart) &&
-          (!dateEnd || String(row.fecha || "") <= dateEnd)
-      ),
+    () => pautaRows.filter((row) => (!dateStart || String(row.fecha || "") >= dateStart) && (!dateEnd || String(row.fecha || "") <= dateEnd)),
     [pautaRows, dateStart, dateEnd]
   );
 
   const resumenPeriodo = useMemo(() => {
     const comentarios = filteredRows.reduce((sum, row) => sum + toNumber(row.comentarios), 0);
-
-    const compartidos = filteredRows.reduce(
-      (sum, row) =>
-        sum +
-        toNumber(row.compartidos) +
-        toNumber(row.retweets) +
-        toNumber(row.historias),
-      0
-    );
-
+    const compartidos = filteredRows.reduce((sum, row) => sum + toNumber(row.compartidos) + toNumber(row.retweets) + toNumber(row.historias), 0);
     const interaccionesCaptadas = filteredRows.reduce(
-      (sum, row) =>
-        sum +
-        toNumber(row.meGusta) +
-        toNumber(row.comentarios) +
-        toNumber(row.compartidos) +
-        toNumber(row.retweets) +
-        toNumber(row.historias),
+      (sum, row) => sum + toNumber(row.meGusta) + toNumber(row.comentarios) + toNumber(row.compartidos) + toNumber(row.retweets) + toNumber(row.historias),
       0
     );
-
     const seguidoresCaptados = filteredRows.reduce((sum, row) => sum + toNumber(row.seguidores), 0);
     const ondaExpansiva = filteredRows.reduce((sum, row) => sum + getOnda(row), 0);
 
-    return {
-      ondaExpansiva,
-      interaccionesCaptadas,
-      compartidos,
-      comentarios,
-      seguidoresCaptados,
-    };
+    return { ondaExpansiva, interaccionesCaptadas, compartidos, comentarios, seguidoresCaptados };
   }, [filteredRows]);
 
   const kpis = useMemo(
@@ -1578,12 +1611,8 @@ export default function OndaExpansivaApp() {
   const accionesPorRed = useMemo(() => groupBy(filteredRows, "red"), [filteredRows]);
   const ondaPorCm = useMemo(() => groupBy(filteredRows, "responsable", getOnda), [filteredRows]);
   const accionesPorTipo = useMemo(() => groupBy(filteredRows, "accion"), [filteredRows]);
-
   const ondaPorFecha = useMemo(
-    () =>
-      groupBy(filteredRows, "fecha", getOnda)
-        .sort((a, b) => String(a.name).localeCompare(String(b.name)))
-        .map((item) => ({ fecha: item.name, onda: item.value })),
+    () => groupBy(filteredRows, "fecha", getOnda).sort((a, b) => String(a.name).localeCompare(String(b.name))).map((item) => ({ fecha: item.name, onda: item.value })),
     [filteredRows]
   );
 
@@ -1592,17 +1621,9 @@ export default function OndaExpansivaApp() {
     const costo = filteredPautaRows.reduce((sum, row) => sum + toNumber(row.costo), 0);
     const interacciones = filteredPautaRows.reduce((sum, row) => sum + toNumber(row.interacciones), 0);
     const visualizaciones = filteredPautaRows.reduce((sum, row) => sum + toNumber(row.visualizaciones), 0);
-    const ctr = filteredPautaRows.length
-      ? filteredPautaRows.reduce((sum, row) => sum + toNumber(row.ctr), 0) / filteredPautaRows.length
-      : 0;
+    const ctr = filteredPautaRows.length ? filteredPautaRows.reduce((sum, row) => sum + toNumber(row.ctr), 0) / filteredPautaRows.length : 0;
 
-    return {
-      alcance,
-      costo,
-      interacciones,
-      visualizaciones,
-      ctr,
-    };
+    return { alcance, costo, interacciones, visualizaciones, ctr };
   }, [filteredPautaRows]);
 
   const conclusionesPeriodo = useMemo(
@@ -1617,9 +1638,7 @@ export default function OndaExpansivaApp() {
   async function persistCatalogos(nextCatalogos) {
     setCatalogos(nextCatalogos);
 
-    const { error } = await supabase
-      .from("catalogos")
-      .upsert(catalogosToDb(nextCatalogos), { onConflict: "categoria" });
+    const { error } = await supabase.from("catalogos").upsert(catalogosToDb(nextCatalogos), { onConflict: "categoria" });
 
     if (error) {
       setSyncStatus(`Error guardando catálogos: ${error.message}`);
@@ -1658,39 +1677,17 @@ export default function OndaExpansivaApp() {
     if (!cleanValue || !catalogos[category]?.[index]) return;
 
     const oldValue = catalogos[category][index];
-
-    const nextItems = catalogos[category].map((item, itemIndex) =>
-      itemIndex === index ? cleanValue : item
-    );
-
-    const nextCatalogos = {
-      ...catalogos,
-      [category]: Array.from(new Set(nextItems)),
-    };
-
-    const fieldMap = {
-      responsables: "responsable",
-      acciones: "accion",
-      redes: "red",
-      campanas: "tema",
-      estadosGrupo: "estado",
-    };
+    const nextItems = catalogos[category].map((item, itemIndex) => (itemIndex === index ? cleanValue : item));
+    const nextCatalogos = { ...catalogos, [category]: Array.from(new Set(nextItems)) };
+    const fieldMap = { responsables: "responsable", acciones: "accion", redes: "red", campanas: "tema", estadosGrupo: "estado" };
 
     const ok = await persistCatalogos(nextCatalogos);
     if (!ok) return;
 
     if (fieldMap[category]) {
       const field = fieldMap[category];
-
-      setRows((prev) =>
-        prev.map((row) => (row[field] === oldValue ? { ...row, [field]: cleanValue } : row))
-      );
-
-      const { error } = await supabase
-        .from("acciones")
-        .update({ [field]: cleanValue })
-        .eq(field, oldValue);
-
+      setRows((prev) => prev.map((row) => (row[field] === oldValue ? { ...row, [field]: cleanValue } : row)));
+      const { error } = await supabase.from("acciones").update({ [field]: cleanValue }).eq(field, oldValue);
       if (error) {
         setSyncStatus(`Error actualizando acciones: ${error.message}`);
         return;
@@ -1698,33 +1695,16 @@ export default function OndaExpansivaApp() {
     }
 
     if (category === "mediosPauta") {
-      setPautaRows((prev) =>
-        prev.map((row) => (row.medio === oldValue ? { ...row, medio: cleanValue } : row))
-      );
-
-      const { error } = await supabase
-        .from("pauta")
-        .update({ medio: cleanValue })
-        .eq("medio", oldValue);
-
+      setPautaRows((prev) => prev.map((row) => (row.medio === oldValue ? { ...row, medio: cleanValue } : row)));
+      const { error } = await supabase.from("pauta").update({ medio: cleanValue }).eq("medio", oldValue);
       if (error) {
         setSyncStatus(`Error actualizando pauta: ${error.message}`);
         return;
       }
     }
 
-    setForm((prev) =>
-      fieldMap[category] && prev[fieldMap[category]] === oldValue
-        ? { ...prev, [fieldMap[category]]: cleanValue }
-        : prev
-    );
-
-    setPautaForm((prev) =>
-      category === "mediosPauta" && prev.medio === oldValue
-        ? { ...prev, medio: cleanValue }
-        : prev
-    );
-
+    setForm((prev) => (fieldMap[category] && prev[fieldMap[category]] === oldValue ? { ...prev, [fieldMap[category]]: cleanValue } : prev));
+    setPautaForm((prev) => (category === "mediosPauta" && prev.medio === oldValue ? { ...prev, medio: cleanValue } : prev));
     setConfigMessage("Configuración actualizada.");
     setSyncStatus("Configuración guardada en Supabase.");
   }
@@ -1733,11 +1713,7 @@ export default function OndaExpansivaApp() {
     const cleanValue = value.trim();
     if (!cleanValue || !catalogos[category]) return;
 
-    const nextCatalogos = {
-      ...catalogos,
-      [category]: Array.from(new Set([...catalogos[category], cleanValue])),
-    };
-
+    const nextCatalogos = { ...catalogos, [category]: Array.from(new Set([...catalogos[category], cleanValue])) };
     const ok = await persistCatalogos(nextCatalogos);
     if (!ok) return;
 
@@ -1750,35 +1726,16 @@ export default function OndaExpansivaApp() {
 
     const nextItems = catalogos[category].filter((item) => item !== value);
     const fallback = nextItems[0] || "";
-
-    const nextCatalogos = {
-      ...catalogos,
-      [category]: nextItems,
-    };
-
-    const fieldMap = {
-      responsables: "responsable",
-      acciones: "accion",
-      redes: "red",
-      campanas: "tema",
-      estadosGrupo: "estado",
-    };
+    const nextCatalogos = { ...catalogos, [category]: nextItems };
+    const fieldMap = { responsables: "responsable", acciones: "accion", redes: "red", campanas: "tema", estadosGrupo: "estado" };
 
     const ok = await persistCatalogos(nextCatalogos);
     if (!ok) return;
 
     if (fieldMap[category]) {
       const field = fieldMap[category];
-
-      setRows((prev) =>
-        prev.map((row) => (row[field] === value ? { ...row, [field]: fallback } : row))
-      );
-
-      const { error } = await supabase
-        .from("acciones")
-        .update({ [field]: fallback })
-        .eq(field, value);
-
+      setRows((prev) => prev.map((row) => (row[field] === value ? { ...row, [field]: fallback } : row)));
+      const { error } = await supabase.from("acciones").update({ [field]: fallback }).eq(field, value);
       if (error) {
         setSyncStatus(`Error actualizando acciones: ${error.message}`);
         return;
@@ -1786,33 +1743,16 @@ export default function OndaExpansivaApp() {
     }
 
     if (category === "mediosPauta") {
-      setPautaRows((prev) =>
-        prev.map((row) => (row.medio === value ? { ...row, medio: fallback } : row))
-      );
-
-      const { error } = await supabase
-        .from("pauta")
-        .update({ medio: fallback })
-        .eq("medio", value);
-
+      setPautaRows((prev) => prev.map((row) => (row.medio === value ? { ...row, medio: fallback } : row)));
+      const { error } = await supabase.from("pauta").update({ medio: fallback }).eq("medio", value);
       if (error) {
         setSyncStatus(`Error actualizando pauta: ${error.message}`);
         return;
       }
     }
 
-    setForm((prev) =>
-      fieldMap[category] && prev[fieldMap[category]] === value
-        ? { ...prev, [fieldMap[category]]: fallback }
-        : prev
-    );
-
-    setPautaForm((prev) =>
-      category === "mediosPauta" && prev.medio === value
-        ? { ...prev, medio: fallback }
-        : prev
-    );
-
+    setForm((prev) => (fieldMap[category] && prev[fieldMap[category]] === value ? { ...prev, [fieldMap[category]]: fallback } : prev));
+    setPautaForm((prev) => (category === "mediosPauta" && prev.medio === value ? { ...prev, medio: fallback } : prev));
     setConfigMessage("Elemento eliminado.");
     setSyncStatus("Catálogo actualizado en Supabase.");
   }
@@ -1833,32 +1773,22 @@ export default function OndaExpansivaApp() {
   }
 
   async function handleSaveConclusiones() {
-    const items = borradorConclusiones
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
+    const items = borradorConclusiones.split("\n").map((item) => item.trim()).filter(Boolean);
     const next = { ...conclusionesPorFecha };
 
     if (items.length) {
-      const { error } = await supabase
-        .from("conclusiones")
-        .upsert({ fecha: fechaConclusiones, conclusiones: items }, { onConflict: "fecha" });
-
+      const { error } = await supabase.from("conclusiones").upsert({ fecha: fechaConclusiones, conclusiones: items }, { onConflict: "fecha" });
       if (error) {
         setSyncStatus(`Error guardando conclusiones: ${error.message}`);
         return;
       }
-
       next[fechaConclusiones] = items;
     } else {
       const { error } = await supabase.from("conclusiones").delete().eq("fecha", fechaConclusiones);
-
       if (error) {
         setSyncStatus(`Error eliminando conclusiones: ${error.message}`);
         return;
       }
-
       delete next[fechaConclusiones];
     }
 
@@ -1877,18 +1807,10 @@ export default function OndaExpansivaApp() {
 
   function handleCsvExport() {
     const ok = downloadCsv(filteredRows);
-
-    setCsvStatus(
-      ok
-        ? `CSV generado con ${filteredRows.length} registros.`
-        : "No se pudo generar el CSV en este entorno."
-    );
+    setCsvStatus(ok ? `CSV generado con ${filteredRows.length} registros.` : "No se pudo generar el CSV en este entorno.");
 
     if (typeof window !== "undefined") {
-      if (csvTimeoutRef.current) {
-        window.clearTimeout(csvTimeoutRef.current);
-      }
-
+      if (csvTimeoutRef.current) window.clearTimeout(csvTimeoutRef.current);
       csvTimeoutRef.current = window.setTimeout(() => {
         setCsvStatus("");
         csvTimeoutRef.current = null;
@@ -1896,19 +1818,17 @@ export default function OndaExpansivaApp() {
     }
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-
+  async function handleSubmit(payload = form) {
     const newRow = {
-      ...form,
+      ...payload,
       id: uid(),
-      alcance: toNumber(form.alcance),
-      meGusta: toNumber(form.meGusta),
-      comentarios: toNumber(form.comentarios),
-      compartidos: toNumber(form.compartidos),
-      retweets: toNumber(form.retweets),
-      historias: toNumber(form.historias),
-      seguidores: toNumber(form.seguidores),
+      alcance: toNumber(payload.alcance),
+      meGusta: toNumber(payload.meGusta),
+      comentarios: toNumber(payload.comentarios),
+      compartidos: toNumber(payload.compartidos),
+      retweets: toNumber(payload.retweets),
+      historias: toNumber(payload.historias),
+      seguidores: toNumber(payload.seguidores),
     };
 
     const { data, error } = await supabase.from("acciones").insert(rowToDb(newRow)).select().single();
@@ -1922,6 +1842,30 @@ export default function OndaExpansivaApp() {
     setForm(createForm(catalogos));
     setVista("dashboard");
     setSyncStatus("Acción guardada correctamente.");
+  }
+
+  async function handleSaveEdit(updatedRow) {
+    const normalizedRow = {
+      ...updatedRow,
+      alcance: toNumber(updatedRow.alcance),
+      meGusta: toNumber(updatedRow.meGusta),
+      comentarios: toNumber(updatedRow.comentarios),
+      compartidos: toNumber(updatedRow.compartidos),
+      retweets: toNumber(updatedRow.retweets),
+      historias: toNumber(updatedRow.historias),
+      seguidores: toNumber(updatedRow.seguidores),
+    };
+
+    const { data, error } = await supabase.from("acciones").update(rowToDb(normalizedRow)).eq("id", normalizedRow.id).select().single();
+
+    if (error) {
+      setSyncStatus(`Error actualizando acción: ${error.message}`);
+      return;
+    }
+
+    setRows((prev) => prev.map((row) => (row.id === normalizedRow.id ? rowFromDb(data) : row)));
+    setEditRow(null);
+    setSyncStatus("Acción actualizada correctamente.");
   }
 
   async function handleAddPauta() {
@@ -1973,48 +1917,21 @@ export default function OndaExpansivaApp() {
               <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-600 sm:tracking-[0.2em]">
                 <IconActivity className="h-3.5 w-3.5" /> Plataforma de gestión diaria
               </div>
-
-              <h1 className="mt-3 break-words text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-                Onda Expansiva
-              </h1>
-
-              <p className="mt-2 max-w-2xl text-sm text-slate-500 md:text-base">
-                Registro diario de acciones, difusión por red y consolidado ejecutivo para medir alcance e impacto por Community Manager.
-              </p>
+              <h1 className="mt-3 break-words text-3xl font-black tracking-tight text-slate-950 md:text-5xl">Onda Expansiva</h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-500 md:text-base">Registro diario de acciones, difusión por red y consolidado ejecutivo para medir alcance e impacto por Community Manager.</p>
             </div>
-
             <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end lg:max-w-xl xl:max-w-none">
-              <button type="button" onClick={() => handleVistaChange("dashboard")} className={`btn-tab ${vista === "dashboard" ? "btn-tab-active" : ""}`}>
-                <IconBarChart className="h-4 w-4" /> Dashboard
-              </button>
-
+              <button type="button" onClick={() => handleVistaChange("dashboard")} className={`btn-tab ${vista === "dashboard" ? "btn-tab-active" : ""}`}><IconBarChart className="h-4 w-4" /> Dashboard</button>
               {isCM && (
                 <>
-                  <button type="button" onClick={() => handleVistaChange("registro")} className={`btn-tab ${vista === "registro" ? "btn-tab-active" : ""}`}>
-                    <IconPlus className="h-4 w-4" /> Registrar
-                  </button>
-
-                  <button type="button" onClick={() => handleVistaChange("tabla")} className={`btn-tab ${vista === "tabla" ? "btn-tab-active" : ""}`}>
-                    <IconClipboard className="h-4 w-4" /> Consolidado
-                  </button>
-
-                  <button type="button" onClick={() => handleVistaChange("configuracion")} className={`btn-tab ${vista === "configuracion" ? "btn-tab-active" : ""}`}>
-                    <IconSettings className="h-4 w-4" /> Configuración
-                  </button>
-
-                  <button type="button" onClick={handleCsvExport} className="btn-primary">
-                    <IconDownload className="h-4 w-4" /> CSV
-                  </button>
+                  <button type="button" onClick={() => handleVistaChange("registro")} className={`btn-tab ${vista === "registro" ? "btn-tab-active" : ""}`}><IconPlus className="h-4 w-4" /> Registrar</button>
+                  <button type="button" onClick={() => handleVistaChange("tabla")} className={`btn-tab ${vista === "tabla" ? "btn-tab-active" : ""}`}><IconClipboard className="h-4 w-4" /> Consolidado</button>
+                  <button type="button" onClick={() => handleVistaChange("configuracion")} className={`btn-tab ${vista === "configuracion" ? "btn-tab-active" : ""}`}><IconSettings className="h-4 w-4" /> Configuración</button>
+                  <button type="button" onClick={handleCsvExport} className="btn-primary"><IconDownload className="h-4 w-4" /> CSV</button>
                 </>
               )}
-
               {isCM && (
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="btn-tab text-red-600 hover:bg-red-50 hover:border-red-200"
-                  title={`Salir (${user?.email || ""})`}
-                >
+                <button type="button" onClick={logout} className="btn-tab text-red-600 hover:border-red-200 hover:bg-red-50" title={`Salir (${user?.email || ""})`}>
                   <IconX className="h-4 w-4" /> Salir
                 </button>
               )}
@@ -2024,37 +1941,17 @@ export default function OndaExpansivaApp() {
       </header>
 
       <main className="mx-auto grid w-full min-w-0 max-w-7xl gap-5 px-0 py-5 sm:gap-6 sm:py-6">
-        {csvStatus && (
-          <div className="dashboard-shell rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
-            {csvStatus}
-          </div>
-        )}
-
-        {isLoading && (
-          <div className="dashboard-shell rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700">
-            Cargando datos desde Supabase...
-          </div>
-        )}
-
-        {syncStatus && (
-          <div className="dashboard-shell rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">
-            {syncStatus}
-          </div>
-        )}
+        {csvStatus && <div className="dashboard-shell rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">{csvStatus}</div>}
+        {isLoading && <div className="dashboard-shell rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700">Cargando datos desde Supabase...</div>}
+        {syncStatus && <div className="dashboard-shell rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">{syncStatus}</div>}
 
         {vista === "dashboard" && (
           <div className="dashboard-shell grid gap-5 sm:gap-6">
             <section className="w-full min-w-0 max-w-full rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
               <div className="mb-4">
-                <h2 className="text-base font-black uppercase tracking-[0.15em] text-slate-900 sm:text-lg">
-                  Control de secciones
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Activa o desactiva las secciones del dashboard según la necesidad del reporte.
-                </p>
+                <h2 className="text-base font-black uppercase tracking-[0.15em] text-slate-900 sm:text-lg">Control de secciones</h2>
+                <p className="mt-1 text-sm text-slate-500">Activa o desactiva las secciones del dashboard según la necesidad del reporte.</p>
               </div>
-
               <div className="grid min-w-0 gap-3 sm:flex sm:flex-wrap">
                 <ToggleChip active={mostrarContactoDirecto} onClick={() => setMostrarContactoDirecto((prev) => !prev)} label="Contacto Directo" />
                 <ToggleChip active={mostrarContenidoPautado} onClick={() => setMostrarContenidoPautado((prev) => !prev)} label="Contenido Pautado" />
@@ -2062,24 +1959,7 @@ export default function OndaExpansivaApp() {
               </div>
             </section>
 
-            <FilterPanel
-              query={query}
-              setQuery={setQuery}
-              responsable={responsable}
-              setResponsable={setResponsable}
-              red={red}
-              setRed={setRed}
-              accion={accion}
-              setAccion={setAccion}
-              catalogos={catalogos}
-              placeholder="Buscar por medio, campaña, hashtag, mención, responsable o red..."
-              dateStart={dateStart}
-              setDateStart={setDateStart}
-              dateEnd={dateEnd}
-              setDateEnd={setDateEnd}
-              clearDateFilters={clearDateFilters}
-            />
-
+            <FilterPanel query={query} setQuery={setQuery} responsable={responsable} setResponsable={setResponsable} red={red} setRed={setRed} accion={accion} setAccion={setAccion} catalogos={catalogos} placeholder="Buscar por medio, campaña, hashtag, mención, responsable o red..." dateStart={dateStart} setDateStart={setDateStart} dateEnd={dateEnd} setDateEnd={setDateEnd} clearDateFilters={clearDateFilters} />
             <OndaHero value={resumenPeriodo.ondaExpansiva} />
 
             <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -2098,9 +1978,7 @@ export default function OndaExpansivaApp() {
 
             <section className="grid w-full min-w-0 max-w-full gap-5 xl:grid-cols-2">
               <ChartCard title="Onda expansiva por Community Manager" subtitle="Total acumulado por responsable">
-                {ondaPorCm.length === 0 ? (
-                  <EmptyState text="No hay acciones registradas por responsable." />
-                ) : (
+                {ondaPorCm.length === 0 ? <EmptyState text="No hay acciones registradas por responsable." /> : (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={ondaPorCm} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -2114,15 +1992,11 @@ export default function OndaExpansivaApp() {
               </ChartCard>
 
               <ChartCard title="Acciones por red" subtitle="Distribución de publicaciones y siembras">
-                {accionesPorRed.length === 0 ? (
-                  <EmptyState text="No hay acciones registradas por red." />
-                ) : (
+                {accionesPorRed.length === 0 ? <EmptyState text="No hay acciones registradas por red." /> : (
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie data={accionesPorRed} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={3} label>
-                        {accionesPorRed.map((entry, index) => (
-                          <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                        ))}
+                        {accionesPorRed.map((entry, index) => <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
                       </Pie>
                       <Tooltip contentStyle={{ borderRadius: 16, border: "1px solid #e2e8f0" }} />
                       <Legend />
@@ -2132,9 +2006,7 @@ export default function OndaExpansivaApp() {
               </ChartCard>
 
               <ChartCard title="Evolución diaria de la onda expansiva" subtitle="Comportamiento por fecha registrada">
-                {ondaPorFecha.length === 0 ? (
-                  <EmptyState text="No hay evolución diaria para mostrar." />
-                ) : (
+                {ondaPorFecha.length === 0 ? <EmptyState text="No hay evolución diaria para mostrar." /> : (
                   <ResponsiveContainer width="100%" height={300}>
                     <AreaChart data={ondaPorFecha} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
                       <defs>
@@ -2154,9 +2026,7 @@ export default function OndaExpansivaApp() {
               </ChartCard>
 
               <ChartCard title="Acciones por tipo" subtitle="Qué está haciendo el equipo diariamente">
-                {accionesPorTipo.length === 0 ? (
-                  <EmptyState text="No hay acciones por tipo registradas." />
-                ) : (
+                {accionesPorTipo.length === 0 ? <EmptyState text="No hay acciones por tipo registradas." /> : (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={accionesPorTipo} layout="vertical" margin={{ top: 16, right: 20, left: 16, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -2171,20 +2041,7 @@ export default function OndaExpansivaApp() {
             </section>
 
             {mostrarContactoDirecto && <ContactoDirectoSection data={CONTACTO_DIRECTO_BASE} />}
-
-            {mostrarContenidoPautado && (
-              <ContenidoPautadoSection
-                rows={filteredPautaRows}
-                form={pautaForm}
-                catalogos={catalogos}
-                onChange={handlePautaChange}
-                onAdd={handleAddPauta}
-                onDelete={deletePautaRow}
-                resumen={pautaResumen}
-                readOnly={!isCM}
-              />
-            )}
-
+            {mostrarContenidoPautado && <ContenidoPautadoSection rows={filteredPautaRows} form={pautaForm} catalogos={catalogos} onChange={handlePautaChange} onAdd={handleAddPauta} onDelete={deletePautaRow} resumen={pautaResumen} readOnly={!isCM} />}
             {mostrarConclusiones && (
               <ConclusionesSection
                 rows={conclusionesPeriodo}
@@ -2208,12 +2065,7 @@ export default function OndaExpansivaApp() {
 
         {vista === "registro" && (
           <div className="dashboard-shell">
-            <RegistroForm
-              form={form}
-              handleChange={handleChange}
-              handleSubmit={handleSubmit}
-              catalogos={catalogos}
-            />
+            <RegistroForm form={form} handleChange={handleChange} handleSubmit={handleSubmit} catalogos={catalogos} />
           </div>
         )}
 
@@ -2222,48 +2074,22 @@ export default function OndaExpansivaApp() {
             <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem]">
               <div className="mb-4">
                 <h2 className="text-xl font-black sm:text-2xl">Consolidado</h2>
-                <p className="text-sm text-slate-500">
-                  Consulta, filtra y exporta las acciones registradas.
-                </p>
+                <p className="text-sm text-slate-500">Consulta, filtra y exporta las acciones registradas.</p>
               </div>
-
-              <FilterPanel
-                query={query}
-                setQuery={setQuery}
-                responsable={responsable}
-                setResponsable={setResponsable}
-                red={red}
-                setRed={setRed}
-                accion={accion}
-                setAccion={setAccion}
-                catalogos={catalogos}
-                placeholder="Buscar en el consolidado..."
-                dateStart={dateStart}
-                setDateStart={setDateStart}
-                dateEnd={dateEnd}
-                setDateEnd={setDateEnd}
-                clearDateFilters={clearDateFilters}
-              />
+              <FilterPanel query={query} setQuery={setQuery} responsable={responsable} setResponsable={setResponsable} red={red} setRed={setRed} accion={accion} setAccion={setAccion} catalogos={catalogos} placeholder="Buscar en el consolidado..." dateStart={dateStart} setDateStart={setDateStart} dateEnd={dateEnd} setDateEnd={setDateEnd} clearDateFilters={clearDateFilters} />
             </section>
 
-            <ConsolidadoTable rows={filteredRows} removeRow={deleteRow} />
+            <ConsolidadoTable rows={filteredRows} removeRow={deleteRow} onEditRow={setEditRow} />
+            <EditModal open={!!editRow} row={editRow} onClose={() => setEditRow(null)} onSave={handleSaveEdit} catalogos={catalogos} />
           </div>
         )}
 
         {vista === "configuracion" && (
           <div className="dashboard-shell">
-            <ConfiguracionSection
-              catalogos={catalogos}
-              onRename={renameCatalogItem}
-              onAdd={addCatalogItem}
-              onRemove={removeCatalogItem}
-              onReset={resetCatalogos}
-              configMessage={configMessage}
-            />
+            <ConfiguracionSection catalogos={catalogos} onRename={renameCatalogItem} onAdd={addCatalogItem} onRemove={removeCatalogItem} onReset={resetCatalogos} configMessage={configMessage} />
           </div>
         )}
       </main>
-
     </div>
   );
 }
