@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../context/useAuth";
 import {
@@ -123,6 +123,9 @@ function createForm(catalogos = CATALOGOS_BASE) {
     historias: "",
     seguidores: "",
     notas: "",
+    esVideo: false,
+    reproducciones: "",
+    screenshotUrl: "",
   };
 }
 
@@ -169,6 +172,9 @@ function rowFromDb(row) {
     historias: toNumber(row.historias),
     seguidores: toNumber(row.seguidores),
     notas: row.notas || "",
+    esVideo: row.es_video || false,
+    reproducciones: toNumber(row.reproducciones),
+    screenshotUrl: row.screenshot_url || "",
   };
 }
 
@@ -197,6 +203,9 @@ function rowToDb(row) {
     historias: toNumber(row.historias),
     seguidores: toNumber(row.seguidores),
     notas: row.notas,
+    es_video: row.esVideo || false,
+    reproducciones: toNumber(row.reproducciones),
+    screenshot_url: row.screenshotUrl || "",
   };
 }
 
@@ -623,8 +632,11 @@ function EditModal({ open, row, onClose, onSave, catalogos }) {
   const [editData, setEditData] = useState(row || {});
 
   useEffect(() => {
-    setEditData(row || {});
-  }, [row]);
+    if (open && row) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEditData(row);
+    }
+  }, [row, open]);
 
   if (!open) return null;
 
@@ -1410,8 +1422,12 @@ function CatalogItemEditor({ item, index, category, onRename, onRemove }) {
   const [draft, setDraft] = useState(item);
 
   useEffect(() => {
-    setDraft(item);
-  }, [item]);
+    // Solo actualizar draft si cambió el item
+    if (draft !== item) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDraft(item);
+    }
+  }, [item, draft]);
 
   function commitDraft() {
     const nextValue = draft.trim();
@@ -1500,7 +1516,9 @@ export default function OndaExpansivaApp() {
     try {
       const saved = localStorage.getItem("ondaexp_form");
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch (err) {
+      console.debug("Error al cargar formulario guardado:", err);
+    }
     return createForm(CATALOGOS_BASE);
   };
   const [form, setForm] = useState(getInitialForm);
@@ -1509,7 +1527,9 @@ export default function OndaExpansivaApp() {
     try {
       const saved = localStorage.getItem("ondaexp_pautaform");
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch (err) {
+      console.debug("Error al cargar formulario pauta guardado:", err);
+    }
     return createPautaForm(CATALOGOS_BASE);
   };
   const [pautaForm, setPautaForm] = useState(getInitialPautaForm);
@@ -1523,18 +1543,21 @@ export default function OndaExpansivaApp() {
 const [vista, setVista] = useState(() => {
   try {
     return localStorage.getItem("ondaexp_vista") || "dashboard";
-  } catch {
+  } catch (err) {
+    console.debug("Error al cargar vista guardada:", err);
     return "dashboard";
   }
 });
 
 useEffect(() => {
   if (!isCM && vista !== "dashboard") {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVista("dashboard");
-
     try {
       localStorage.setItem("ondaexp_vista", "dashboard");
-    } catch {}
+    } catch (err) {
+      console.debug("Error guardando vista:", err);
+    }
   }
 }, [isCM, vista]);
   
@@ -1838,7 +1861,9 @@ useEffect(() => {
 
   try {
     localStorage.setItem("ondaexp_vista", nextVista);
-  } catch {}
+  } catch (err) {
+    console.debug("Error guardando vista:", err);
+  }
 
   if (typeof window !== "undefined") {
     window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
@@ -1859,6 +1884,24 @@ useEffect(() => {
   }
 
   async function handleSubmit(payload = form) {
+    let screenshotUrl = "";
+    
+    // Si hay screenshot (File), convertir a Base64
+    if (payload.screenshot instanceof File) {
+      try {
+        const reader = new FileReader();
+        screenshotUrl = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(payload.screenshot);
+        });
+      } catch (err) {
+        console.error("Error al procesar screenshot:", err);
+        setSyncStatus("Error procesando la imagen. Por favor intenta de nuevo.");
+        return;
+      }
+    }
+
     const newRow = {
       ...payload,
       id: uid(),
@@ -1869,6 +1912,9 @@ useEffect(() => {
       retweets: toNumber(payload.retweets),
       historias: toNumber(payload.historias),
       seguidores: toNumber(payload.seguidores),
+      reproducciones: toNumber(payload.reproducciones),
+      screenshotUrl,
+      screenshot: undefined, // No guardar el File
     };
 
     const { data, error } = await supabase.from("acciones").insert(rowToDb(newRow)).select().single();
@@ -1878,14 +1924,16 @@ useEffect(() => {
       return;
     }
 
-      const cleanForm = createForm(catalogos);
+    const cleanForm = createForm(catalogos);
 
     setRows((prev) => [rowFromDb(data), ...prev]);
     setForm(cleanForm);
 
     try {
       localStorage.setItem("ondaexp_form", JSON.stringify(cleanForm));
-    } catch {}
+    } catch (err) {
+      console.debug("Error guardando formulario:", err);
+    }
 
     setVista("dashboard");
     setSyncStatus("Acción guardada correctamente.");
@@ -1944,7 +1992,9 @@ useEffect(() => {
 
     try {
       localStorage.setItem("ondaexp_pautaform", JSON.stringify(cleanPautaForm));
-    } catch {}
+    } catch (err) {
+      console.debug("Error guardando formulario pauta:", err);
+    }
 
     setSyncStatus("Contenido pautado guardado correctamente.");
   }
@@ -1960,7 +2010,9 @@ useEffect(() => {
 
     try {
       localStorage.setItem("ondaexp_form", JSON.stringify(next));
-    } catch {}
+    } catch (err) {
+      console.debug("Error guardando formulario:", err);
+    }
 
     return next;
   });
@@ -1972,7 +2024,9 @@ const handlePautaChange = (field, value) => {
 
     try {
       localStorage.setItem("ondaexp_pautaform", JSON.stringify(next));
-    } catch {}
+    } catch (err) {
+      console.debug("Error guardando formulario pauta:", err);
+    }
 
     return next;
   });
