@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../context/useAuth";
-import { gapi } from "gapi-script";
 import {
   Area,
   AreaChart,
@@ -61,19 +60,6 @@ const CONTACTO_DIRECTO_BASE = {
   diasCampana: 0,
   sms: { enviosDiarios: 0, frecuencia: "", total: 0, costoTotal: 0 },
   llamadas: { realizadas: 0, frecuencia: "", total: 0, costoTotal: 0 },
-};
-
-const CLIENT_ID = "TU_CLIENT_ID.apps.googleusercontent.com";
-const API_KEY = "TU_API_KEY";
-const SCOPES = "https://www.googleapis.com/auth/drive.file";
-
-const DRIVE_FOLDERS = {
-  "CM 1": "1Ns5Up0BoY0-eWXIjnpF9_hkdmP0svBdn",
-  "CM 2": "12EeeDdIyu4vJb5DENoo8ACTiAzot4fjF",
-  "CM 3": "1fD6NZpSsCzGliKcNhgg8lpGojbDtFqh5",
-  "CM 4": "1wbCmf8Ys8Wpe36mc8jpuBPWxGeCfeYye",
-  "CM 5": "1c5_b8CIQrIqvuc35ekXP_y-tbiXPxaSX",
-  "CM 6": "1viR_CcSLRg3wCZmLT1hTayAxEPxpmCG_",
 };
 
 function uid() {
@@ -1075,9 +1061,12 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
   const [esVideo, setEsVideo] = useState(false);
   const [reproducciones, setReproducciones] = useState("");
   const [screenshot, setScreenshot] = useState(null);
-  const [driveStatus, setDriveStatus] = useState("");
+
   const fileInputRef = useRef(null);
-  const previewUrl = useMemo(() => (screenshot ? URL.createObjectURL(screenshot) : null), [screenshot]);
+
+  const previewUrl = useMemo(() => {
+    return screenshot ? URL.createObjectURL(screenshot) : null;
+  }, [screenshot]);
 
   useEffect(() => {
     return () => {
@@ -1085,66 +1074,12 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
     };
   }, [previewUrl]);
 
-  useEffect(() => {
-    function start() {
-      if (!API_KEY || API_KEY === "TU_API_KEY" || !CLIENT_ID || CLIENT_ID === "TU_CLIENT_ID.apps.googleusercontent.com") return;
-      gapi.client.init({
-        apiKey: API_KEY,
-        clientId: CLIENT_ID,
-        scope: SCOPES,
-        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-      });
-    }
-
-    try {
-      gapi.load("client:auth2", start);
-    } catch {
-      setDriveStatus("No se pudo inicializar Google Drive.");
-    }
-  }, []);
-
-  const handleGoogleAuth = async () => {
-    if (!API_KEY || API_KEY === "TU_API_KEY" || !CLIENT_ID || CLIENT_ID === "TU_CLIENT_ID.apps.googleusercontent.com") {
-      setDriveStatus("Configura primero CLIENT_ID y API_KEY de Google Drive.");
-      return false;
-    }
-
-    try {
-      const authInstance = gapi.auth2.getAuthInstance();
-      await authInstance.signIn();
-      setDriveStatus("Google Drive conectado.");
-      return true;
-    } catch {
-      setDriveStatus("No se pudo conectar con Google Drive.");
-      return false;
-    }
-  };
-
-  const uploadToDrive = async (file, responsable) => {
-    const accessToken = gapi.auth.getToken()?.access_token;
-    if (!accessToken) throw new Error("No hay token de Google Drive.");
-
-    const folderId = DRIVE_FOLDERS[responsable] || Object.values(DRIVE_FOLDERS)[0];
-    const metadata = { name: file.name, mimeType: file.type, parents: [folderId] };
-    const driveForm = new FormData();
-
-    driveForm.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-    driveForm.append("file", file);
-
-    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
-      method: "POST",
-      headers: new Headers({ Authorization: `Bearer ${accessToken}` }),
-      body: driveForm,
-    });
-
-    if (!res.ok) throw new Error("Error subiendo archivo a Drive.");
-    return res.json();
-  };
-
   const handleDrop = useCallback((event) => {
     event.preventDefault();
-    if (event.dataTransfer.files && event.dataTransfer.files[0]) {
-      setScreenshot(event.dataTransfer.files[0]);
+
+    const file = event.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      setScreenshot(file);
     }
   }, []);
 
@@ -1153,44 +1088,30 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
   }, []);
 
   const handleScreenshotChange = (event) => {
-    if (event.target.files && event.target.files[0]) {
-      setScreenshot(event.target.files[0]);
+    const file = event.target.files?.[0];
+
+    if (file && file.type.startsWith("image/")) {
+      setScreenshot(file);
     }
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
 
-    let screenshotDriveId = null;
-
-    if (screenshot) {
-      try {
-        const authInstance = gapi.auth2?.getAuthInstance?.();
-        const isSignedIn = authInstance?.isSignedIn?.get?.();
-
-        if (!isSignedIn) {
-          const connected = await handleGoogleAuth();
-          if (!connected) return;
-        }
-
-        const driveRes = await uploadToDrive(screenshot, form.responsable);
-        screenshotDriveId = driveRes.id;
-      } catch (error) {
-        setDriveStatus(error.message || "No se pudo subir la imagen a Drive.");
-        return;
-      }
-    }
-
     await handleSubmit({
       ...form,
       esVideo,
       reproducciones: esVideo ? reproducciones : "",
-      screenshotDriveId,
+      screenshot,
     });
 
     setEsVideo(false);
     setReproducciones("");
     setScreenshot(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   return (
@@ -1209,24 +1130,31 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         <Field label="Fecha">
           <input type="date" value={form.fecha} onChange={(event) => handleChange("fecha", event.target.value)} className="input" required />
         </Field>
+
         <Field label="Responsable">
           <Select value={form.responsable} onChange={(value) => handleChange("responsable", value)} options={catalogos.responsables} />
         </Field>
+
         <Field label="Acción">
           <Select value={form.accion} onChange={(value) => handleChange("accion", value)} options={catalogos.acciones} />
         </Field>
+
         <Field label="Red / Medio">
           <Select value={form.red} onChange={(value) => handleChange("red", value)} options={catalogos.redes} />
         </Field>
+
         <Field label="Campaña">
           <Select value={form.tema} onChange={(value) => handleChange("tema", value)} options={catalogos.campanas} />
         </Field>
+
         <Field label="Estado en Grupos">
           <Select value={form.estado} onChange={(value) => handleChange("estado", value)} options={catalogos.estadosGrupo} />
         </Field>
+
         <Field label="Hashtag 1">
           <input value={form.hashtag1} onChange={(event) => handleChange("hashtag1", event.target.value)} className="input" placeholder="#" />
         </Field>
+
         <Field label="Hashtag 2">
           <input value={form.hashtag2} onChange={(event) => handleChange("hashtag2", event.target.value)} className="input" placeholder="#" />
         </Field>
@@ -1236,12 +1164,15 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         <Field label="Nombre del medio / perfil / grupo">
           <input value={form.perfilGrupo} onChange={(event) => handleChange("perfilGrupo", event.target.value)} className="input" placeholder="Ej: Semana, El Tiempo, grupo X" required />
         </Field>
+
         <Field label="Perfil de difusión">
           <input value={form.perfilDifusion} onChange={(event) => handleChange("perfilDifusion", event.target.value)} className="input" placeholder="Ej: Perfil A, Influenciador, canal oficial" />
         </Field>
+
         <Field label="Link perfil / grupo">
           <input type="url" value={form.linkPerfil} onChange={(event) => handleChange("linkPerfil", event.target.value)} className="input" placeholder="https://..." />
         </Field>
+
         <Field label="Link de la publicación">
           <input type="url" value={form.linkPublicacion} onChange={(event) => handleChange("linkPublicacion", event.target.value)} className="input" placeholder="https://..." />
         </Field>
@@ -1251,24 +1182,31 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         <Field label="Alcance">
           <input type="number" min="0" value={form.alcance} onChange={(event) => handleChange("alcance", event.target.value)} className="input" placeholder="0" required />
         </Field>
+
         <Field label="Me gusta">
           <input type="number" min="0" value={form.meGusta} onChange={(event) => handleChange("meGusta", event.target.value)} className="input" placeholder="0" />
         </Field>
+
         <Field label="Comentarios">
           <input type="number" min="0" value={form.comentarios} onChange={(event) => handleChange("comentarios", event.target.value)} className="input" placeholder="0" />
         </Field>
+
         <Field label="Compartidos">
           <input type="number" min="0" value={form.compartidos} onChange={(event) => handleChange("compartidos", event.target.value)} className="input" placeholder="0" />
         </Field>
+
         <Field label="Retweets">
           <input type="number" min="0" value={form.retweets} onChange={(event) => handleChange("retweets", event.target.value)} className="input" placeholder="0" />
         </Field>
+
         <Field label="Historias">
           <input type="number" min="0" value={form.historias} onChange={(event) => handleChange("historias", event.target.value)} className="input" placeholder="0" />
         </Field>
+
         <Field label="Seguidores">
           <input type="number" min="0" value={form.seguidores} onChange={(event) => handleChange("seguidores", event.target.value)} className="input" placeholder="0" />
         </Field>
+
         {esVideo && (
           <Field label="Reproducciones">
             <input type="number" min="0" value={reproducciones} onChange={(event) => setReproducciones(event.target.value)} className="input" placeholder="0" required />
@@ -1288,13 +1226,14 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         onClick={() => fileInputRef.current?.click()}
       >
         <input type="file" accept="image/*" hidden ref={fileInputRef} onChange={handleScreenshotChange} />
+
         {screenshot && previewUrl ? (
           <div className="flex flex-col items-center">
-            <img src={previewUrl} alt="Screenshot preview" className="mb-2 max-h-32 rounded-lg border" />
+            <img src={previewUrl} alt="Vista previa del screenshot" className="mb-2 max-h-32 rounded-lg border" />
             <span className="text-xs font-bold text-slate-700">{screenshot.name}</span>
           </div>
         ) : (
-          <span className="text-slate-400">Arrastra aquí la imagen o haz click para seleccionar un archivo</span>
+          <span className="text-slate-400">Arrastra aquí la imagen o haz clic para seleccionar un archivo</span>
         )}
       </div>
 
@@ -1302,35 +1241,34 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         <Field label="Mención">
           <input value={form.mencion} onChange={(event) => handleChange("mencion", event.target.value)} className="input" placeholder="@" />
         </Field>
+
         <Field label="Notas">
           <textarea value={form.notas} onChange={(event) => handleChange("notas", event.target.value)} className="input min-h-24" placeholder="Observaciones de la acción" />
         </Field>
       </div>
 
-      {driveStatus && <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700">{driveStatus}</div>}
-
-      <button type="button" onClick={handleGoogleAuth} className="mr-3 mt-5 rounded-2xl bg-blue-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-slate-200 transition hover:scale-[1.01]">
-        Conectar con Google Drive
-      </button>
       <button type="submit" className="mt-5 w-full rounded-2xl bg-slate-950 px-6 py-3 text-sm font-black text-white shadow-lg shadow-slate-200 transition hover:scale-[1.01] sm:w-auto">
         Guardar acción y alimentar dashboard
       </button>
     </form>
   );
 }
-
 function ConsolidadoTable({ rows, removeRow, onEditRow }) {
   return (
     <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-black sm:text-2xl">Consolidado de acciones</h2>
-          <p className="text-sm text-slate-500">Base maestra lista para exportar, auditar o conectar a Looker Studio.</p>
+          <p className="text-sm text-slate-500">
+            Base maestra lista para exportar, auditar o conectar a Looker Studio.
+          </p>
         </div>
+
         <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-700">
           <IconCalendar className="h-4 w-4" /> {fmt(rows.length)} registros
         </div>
       </div>
+
       <div className="-mx-4 overflow-x-auto border-y border-slate-200 sm:mx-0 sm:rounded-2xl sm:border">
         <table className="w-full min-w-[1180px] text-left text-sm">
           <thead>
@@ -1348,31 +1286,83 @@ function ConsolidadoTable({ rows, removeRow, onEditRow }) {
               <th className="px-3 py-3"></th>
             </tr>
           </thead>
+
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-10 text-center text-sm font-bold text-slate-400">No hay acciones registradas.</td>
+                <td
+                  colSpan={11}
+                  className="px-4 py-10 text-center text-sm font-bold text-slate-400"
+                >
+                  No hay acciones registradas.
+                </td>
               </tr>
             ) : (
               rows.map((row, index) => (
-                <tr key={row.id} className={`${index % 2 === 0 ? "bg-white" : "bg-slate-50"} border-b border-slate-100 hover:bg-blue-50/60`}>
+                <tr
+                  key={row.id}
+                  className={`${
+                    index % 2 === 0 ? "bg-white" : "bg-slate-50"
+                  } border-b border-slate-100 hover:bg-blue-50/60`}
+                >
                   <td className="px-3 py-3 font-bold">{row.fecha}</td>
                   <td className="px-3 py-3">{row.responsable}</td>
                   <td className="px-3 py-3">{row.accion}</td>
-                  <td className="px-3 py-3"><span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 font-bold"><IconForNetwork red={row.red} />{row.red}</span></td>
+
+                  <td className="px-3 py-3">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 font-bold">
+                      <IconForNetwork red={row.red} />
+                      {row.red}
+                    </span>
+                  </td>
+
                   <td className="px-3 py-3">{row.perfilGrupo}</td>
                   <td className="px-3 py-3">{row.tema}</td>
                   <td className="px-3 py-3 text-right">{fmt(row.alcance)}</td>
-                  <td className="px-3 py-3 text-right text-base font-black text-blue-700">{fmt(getOnda(row))}</td>
+
+                  <td className="px-3 py-3 text-right text-base font-black text-blue-700">
+                    {fmt(getOnda(row))}
+                  </td>
+
                   <td className="px-3 py-3 text-right">{fmt(row.seguidores)}</td>
-                  <td className="px-3 py-3"><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">{row.estado}</span></td>
+
+                  <td className="px-3 py-3">
+                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">
+                      {row.estado}
+                    </span>
+                  </td>
+
                   <td className="flex justify-end gap-2 px-3 py-3 text-right">
-                    <button type="button" onClick={() => onEditRow?.(row)} className="inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-bold text-blue-400 hover:bg-blue-50 hover:text-blue-600" title="Editar">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4 1a1 1 0 001.213-1.213l1-4a4 4 0 01.828-1.414z" /></svg>
+                    <button
+                      type="button"
+                      onClick={() => onEditRow?.(row)}
+                      className="inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-bold text-blue-400 hover:bg-blue-50 hover:text-blue-600"
+                      title="Editar"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4 1a1 1 0 001.213-1.213l1-4a4 4 0 01.828-1.414z"
+                        />
+                      </svg>
                       Editar
                     </button>
-                    <button type="button" onClick={() => removeRow(row.id)} className="inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-bold text-slate-400 hover:bg-red-50 hover:text-red-600">
-                      <IconTrash className="h-3.5 w-3.5" /> Eliminar
+
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.id)}
+                      className="inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-bold text-slate-400 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <IconTrash className="h-3.5 w-3.5" />
+                      Eliminar
                     </button>
                   </td>
                 </tr>
@@ -1460,13 +1450,28 @@ function CatalogManager({ title, description, items, category, onRename, onAdd, 
         <h3 className="text-lg font-black text-slate-950">{title}</h3>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
       </div>
+
       <div className="grid gap-3">
         {items.map((item, index) => (
-          <CatalogItemEditor key={`${category}-${item}-${index}`} item={item} index={index} category={category} onRename={onRename} onRemove={onRemove} />
+          <CatalogItemEditor
+            key={`${category}-${item}-${index}`}
+            item={item}
+            index={index}
+            category={category}
+            onRename={onRename}
+            onRemove={onRemove}
+          />
         ))}
       </div>
+
       <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-        <input value={newItem} onChange={(event) => setNewItem(event.target.value)} className="input" placeholder={`Nuevo valor para ${title.toLowerCase()}`} />
+        <input
+          value={newItem}
+          onChange={(event) => setNewItem(event.target.value)}
+          className="input"
+          placeholder={`Nuevo valor para ${title.toLowerCase()}`}
+        />
+
         <button
           type="button"
           onClick={() => {
@@ -1487,10 +1492,27 @@ export default function OndaExpansivaApp() {
   const [catalogos, setCatalogos] = useState(() => mergeCatalogos(CATALOGOS_BASE));
   const [rows, setRows] = useState([]);
   const [pautaRows, setPautaRows] = useState([]);
-  const [form, setForm] = useState(() => createForm(CATALOGOS_BASE));
-  const [pautaForm, setPautaForm] = useState(() => createPautaForm(CATALOGOS_BASE));
+  // Eliminadas declaraciones duplicadas de form y pautaForm
   const [isLoading, setIsLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("");
+  // Persistencia del formulario de registro
+  const getInitialForm = () => {
+    try {
+      const saved = localStorage.getItem("ondaexp_form");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return createForm(CATALOGOS_BASE);
+  };
+  const [form, setForm] = useState(getInitialForm);
+  // Persistencia del formulario de pauta
+  const getInitialPautaForm = () => {
+    try {
+      const saved = localStorage.getItem("ondaexp_pautaform");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return createPautaForm(CATALOGOS_BASE);
+  };
+  const [pautaForm, setPautaForm] = useState(getInitialPautaForm);
 
   const [query, setQuery] = useState("");
   const [responsable, setResponsable] = useState("Todos");
@@ -1498,8 +1520,24 @@ export default function OndaExpansivaApp() {
   const [accion, setAccion] = useState("Todas");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
-  const [vista, setVista] = useState("dashboard");
+const [vista, setVista] = useState(() => {
+  try {
+    return localStorage.getItem("ondaexp_vista") || "dashboard";
+  } catch {
+    return "dashboard";
+  }
+});
 
+useEffect(() => {
+  if (!isCM && vista !== "dashboard") {
+    setVista("dashboard");
+
+    try {
+      localStorage.setItem("ondaexp_vista", "dashboard");
+    } catch {}
+  }
+}, [isCM, vista]);
+  
   const [mostrarContactoDirecto, setMostrarContactoDirecto] = useState(true);
   const [mostrarContenidoPautado, setMostrarContenidoPautado] = useState(true);
   const [mostrarConclusiones, setMostrarConclusiones] = useState(true);
@@ -1545,8 +1583,6 @@ export default function OndaExpansivaApp() {
         setRows(safeArray(accionesResult.data).map(rowFromDb));
         setPautaRows(safeArray(pautaResult.data).map(pautaFromDb));
         setConclusionesPorFecha(conclusionesFromDb(conclusionesResult.data));
-        setForm(createForm(nextCatalogos));
-        setPautaForm(createPautaForm(nextCatalogos));
         setIsLoading(false);
       }
     }
@@ -1796,14 +1832,18 @@ export default function OndaExpansivaApp() {
     setSyncStatus("Conclusiones guardadas correctamente.");
   }
 
-  function handleVistaChange(nextVista) {
-    setVista(nextVista);
-    setCsvStatus("");
+ function handleVistaChange(nextVista) {
+  setVista(nextVista);
+  setCsvStatus("");
 
-    if (typeof window !== "undefined") {
-      window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
-    }
+  try {
+    localStorage.setItem("ondaexp_vista", nextVista);
+  } catch {}
+
+  if (typeof window !== "undefined") {
+    window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
   }
+}
 
   function handleCsvExport() {
     const ok = downloadCsv(filteredRows);
@@ -1838,8 +1878,15 @@ export default function OndaExpansivaApp() {
       return;
     }
 
+      const cleanForm = createForm(catalogos);
+
     setRows((prev) => [rowFromDb(data), ...prev]);
-    setForm(createForm(catalogos));
+    setForm(cleanForm);
+
+    try {
+      localStorage.setItem("ondaexp_form", JSON.stringify(cleanForm));
+    } catch {}
+
     setVista("dashboard");
     setSyncStatus("Acción guardada correctamente.");
   }
@@ -1890,8 +1937,15 @@ export default function OndaExpansivaApp() {
       return;
     }
 
-    setPautaRows((prev) => [pautaFromDb(data), ...prev]);
-    setPautaForm(createPautaForm(catalogos));
+   const cleanPautaForm = createPautaForm(catalogos);
+
+       setPautaRows((prev) => [pautaFromDb(data), ...prev]);
+    setPautaForm(cleanPautaForm);
+
+    try {
+      localStorage.setItem("ondaexp_pautaform", JSON.stringify(cleanPautaForm));
+    } catch {}
+
     setSyncStatus("Contenido pautado guardado correctamente.");
   }
 
@@ -1900,13 +1954,29 @@ export default function OndaExpansivaApp() {
     setDateEnd("");
   };
 
-  const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
+ const handleChange = (field, value) => {
+  setForm((prev) => {
+    const next = { ...prev, [field]: value };
 
-  const handlePautaChange = (field, value) => {
-    setPautaForm((prev) => ({ ...prev, [field]: value }));
-  };
+    try {
+      localStorage.setItem("ondaexp_form", JSON.stringify(next));
+    } catch {}
+
+    return next;
+  });
+};
+
+const handlePautaChange = (field, value) => {
+  setPautaForm((prev) => {
+    const next = { ...prev, [field]: value };
+
+    try {
+      localStorage.setItem("ondaexp_pautaform", JSON.stringify(next));
+    } catch {}
+
+    return next;
+  });
+};
 
   return (
     <div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-[#f5f7fb] text-slate-900">
