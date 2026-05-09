@@ -152,6 +152,7 @@ function toNumber(value) {
 function rowFromDb(row) {
   return {
     id: row.id,
+    proyectoId: row.proyecto_id || "",
     fecha: row.fecha || today(),
     responsable: row.responsable || "",
     accion: row.accion || "",
@@ -185,6 +186,7 @@ function rowFromDb(row) {
 function rowToDb(row) {
   return {
     id: row.id,
+    proyecto_id: row.proyectoId || row.proyecto_id || null,
     fecha: row.fecha,
     responsable: row.responsable,
     accion: row.accion,
@@ -218,6 +220,7 @@ function rowToDb(row) {
 function pautaFromDb(row) {
   return {
     id: row.id,
+    proyectoId: row.proyecto_id || "",
     fecha: row.fecha || today(),
     url: row.url || "",
     medio: row.medio || "",
@@ -232,6 +235,7 @@ function pautaFromDb(row) {
 function pautaToDb(row) {
   return {
     id: row.id,
+    proyecto_id: row.proyectoId || row.proyecto_id || null,
     fecha: row.fecha,
     url: row.url,
     medio: row.medio,
@@ -251,10 +255,11 @@ function catalogosFromDb(rows) {
   return mergeCatalogos(parsed);
 }
 
-function catalogosToDb(catalogos) {
+function catalogosToDb(catalogos, proyectoId = null) {
   return Object.entries(catalogos).map(([categoria, items]) => ({
     categoria,
     items: safeArray(items),
+    ...(proyectoId ? { proyecto_id: proyectoId } : {}),
   }));
 }
 
@@ -1512,6 +1517,8 @@ function CatalogManager({ title, description, items, category, onRename, onAdd, 
 export default function OndaExpansivaApp() {
   const { isCM, user, logout } = useAuth();
   const [catalogos, setCatalogos] = useState(() => mergeCatalogos(CATALOGOS_BASE));
+  const [proyectos, setProyectos] = useState([]);
+  const [proyectoActivo, setProyectoActivo] = useState(null);
   const [rows, setRows] = useState([]);
   const [pautaRows, setPautaRows] = useState([]);
   // Eliminadas declaraciones duplicadas de form y pautaForm
@@ -1581,18 +1588,82 @@ useEffect(() => {
   const [editRow, setEditRow] = useState(null);
   const csvTimeoutRef = useRef(null);
 
+  const withProyectoActivo = useCallback((query) => {
+    return isCM && proyectoActivo ? query.eq("proyecto_id", proyectoActivo) : query;
+  }, [isCM, proyectoActivo]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function cargarProyectosUsuario() {
+      if (!isCM || !user?.id) {
+        if (mounted) {
+          setProyectos([]);
+          setProyectoActivo(null);
+        }
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("usuarios_proyectos")
+        .select(`
+          rol,
+          proyectos (
+            id,
+            nombre,
+            slug
+          )
+        `);
+
+      if (error) {
+        if (mounted) {
+          setSyncStatus(`Error cargando proyectos: ${error.message}`);
+          setProyectos([]);
+          setProyectoActivo(null);
+        }
+        return;
+      }
+
+      const lista = safeArray(data)
+        .map((item) => {
+          const proyecto = Array.isArray(item.proyectos) ? item.proyectos[0] : item.proyectos;
+          return proyecto ? { ...proyecto, rol: item.rol } : null;
+        })
+        .filter(Boolean);
+
+      if (mounted) {
+        setProyectos(lista);
+        setProyectoActivo((actual) => (lista.some((proyecto) => proyecto.id === actual) ? actual : lista[0]?.id ?? null));
+      }
+    }
+
+    cargarProyectosUsuario();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isCM, user?.id]);
+
   useEffect(() => {
     let mounted = true;
 
     async function loadDashboardData() {
+      if (isCM && !proyectoActivo) {
+        setRows([]);
+        setPautaRows([]);
+        setConclusionesPorFecha({});
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       setSyncStatus("");
 
       const [accionesResult, pautaResult, catalogosResult, conclusionesResult] = await Promise.all([
-        supabase.from("acciones").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
-        supabase.from("pauta").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
-        supabase.from("catalogos").select("*").order("categoria", { ascending: true }),
-        supabase.from("conclusiones").select("*").order("fecha", { ascending: true }),
+        withProyectoActivo(supabase.from("acciones").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false })),
+        withProyectoActivo(supabase.from("pauta").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false })),
+        withProyectoActivo(supabase.from("catalogos").select("*").order("categoria", { ascending: true })),
+        withProyectoActivo(supabase.from("conclusiones").select("*").order("fecha", { ascending: true })),
       ]);
 
       const error = accionesResult.error || pautaResult.error || catalogosResult.error || conclusionesResult.error;
@@ -1621,7 +1692,7 @@ useEffect(() => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [isCM, proyectoActivo, withProyectoActivo]);
 
   useEffect(() => {
     return () => {
@@ -1701,9 +1772,16 @@ useEffect(() => {
   );
 
   async function persistCatalogos(nextCatalogos) {
+    if (isCM && !proyectoActivo) {
+      setSyncStatus("Selecciona un proyecto antes de guardar catálogos.");
+      return false;
+    }
+
     setCatalogos(nextCatalogos);
 
-    const { error } = await supabase.from("catalogos").upsert(catalogosToDb(nextCatalogos), { onConflict: "categoria" });
+    const { error } = await supabase
+      .from("catalogos")
+      .upsert(catalogosToDb(nextCatalogos, proyectoActivo), { onConflict: proyectoActivo ? "proyecto_id,categoria" : "categoria" });
 
     if (error) {
       setSyncStatus(`Error guardando catálogos: ${error.message}`);
@@ -1714,7 +1792,21 @@ useEffect(() => {
   }
 
   async function deleteRow(id) {
-    const { error } = await supabase.from("acciones").delete().eq("id", id);
+    // Obtener el registro para saber si tiene screenshot
+    const rowToDelete = rows.find((r) => r.id === id);
+
+    if (rowToDelete?.screenshotPath) {
+      try {
+        await supabase.storage
+          .from('screenshots')
+          .remove([rowToDelete.screenshotPath]);
+      } catch (err) {
+        console.error("Error al eliminar screenshot del storage:", err);
+        // Continuar con la eliminación del registro aunque falle el storage
+      }
+    }
+
+    const { error } = await withProyectoActivo(supabase.from("acciones").delete().eq("id", id));
 
     if (error) {
       setSyncStatus(`Error eliminando acción: ${error.message}`);
@@ -1726,7 +1818,7 @@ useEffect(() => {
   }
 
   async function deletePautaRow(id) {
-    const { error } = await supabase.from("pauta").delete().eq("id", id);
+    const { error } = await withProyectoActivo(supabase.from("pauta").delete().eq("id", id));
 
     if (error) {
       setSyncStatus(`Error eliminando pauta: ${error.message}`);
@@ -1752,7 +1844,7 @@ useEffect(() => {
     if (fieldMap[category]) {
       const field = fieldMap[category];
       setRows((prev) => prev.map((row) => (row[field] === oldValue ? { ...row, [field]: cleanValue } : row)));
-      const { error } = await supabase.from("acciones").update({ [field]: cleanValue }).eq(field, oldValue);
+      const { error } = await withProyectoActivo(supabase.from("acciones").update({ [field]: cleanValue }).eq(field, oldValue));
       if (error) {
         setSyncStatus(`Error actualizando acciones: ${error.message}`);
         return;
@@ -1761,7 +1853,7 @@ useEffect(() => {
 
     if (category === "mediosPauta") {
       setPautaRows((prev) => prev.map((row) => (row.medio === oldValue ? { ...row, medio: cleanValue } : row)));
-      const { error } = await supabase.from("pauta").update({ medio: cleanValue }).eq("medio", oldValue);
+      const { error } = await withProyectoActivo(supabase.from("pauta").update({ medio: cleanValue }).eq("medio", oldValue));
       if (error) {
         setSyncStatus(`Error actualizando pauta: ${error.message}`);
         return;
@@ -1800,7 +1892,7 @@ useEffect(() => {
     if (fieldMap[category]) {
       const field = fieldMap[category];
       setRows((prev) => prev.map((row) => (row[field] === value ? { ...row, [field]: fallback } : row)));
-      const { error } = await supabase.from("acciones").update({ [field]: fallback }).eq(field, value);
+      const { error } = await withProyectoActivo(supabase.from("acciones").update({ [field]: fallback }).eq(field, value));
       if (error) {
         setSyncStatus(`Error actualizando acciones: ${error.message}`);
         return;
@@ -1809,7 +1901,7 @@ useEffect(() => {
 
     if (category === "mediosPauta") {
       setPautaRows((prev) => prev.map((row) => (row.medio === value ? { ...row, medio: fallback } : row)));
-      const { error } = await supabase.from("pauta").update({ medio: fallback }).eq("medio", value);
+      const { error } = await withProyectoActivo(supabase.from("pauta").update({ medio: fallback }).eq("medio", value));
       if (error) {
         setSyncStatus(`Error actualizando pauta: ${error.message}`);
         return;
@@ -1842,14 +1934,23 @@ useEffect(() => {
     const next = { ...conclusionesPorFecha };
 
     if (items.length) {
-      const { error } = await supabase.from("conclusiones").upsert({ fecha: fechaConclusiones, conclusiones: items }, { onConflict: "fecha" });
+      const payload = {
+        fecha: fechaConclusiones,
+        conclusiones: items,
+        ...(proyectoActivo ? { proyecto_id: proyectoActivo } : {}),
+      };
+      const { error } = await supabase
+        .from("conclusiones")
+        .upsert(payload, { onConflict: proyectoActivo ? "proyecto_id,fecha" : "fecha" });
       if (error) {
         setSyncStatus(`Error guardando conclusiones: ${error.message}`);
         return;
       }
       next[fechaConclusiones] = items;
     } else {
-      const { error } = await supabase.from("conclusiones").delete().eq("fecha", fechaConclusiones);
+      let query = supabase.from("conclusiones").delete().eq("fecha", fechaConclusiones);
+      if (proyectoActivo) query = query.eq("proyecto_id", proyectoActivo);
+      const { error } = await query;
       if (error) {
         setSyncStatus(`Error eliminando conclusiones: ${error.message}`);
         return;
@@ -1890,6 +1991,11 @@ useEffect(() => {
   }
 
   async function handleSubmit(payload = form) {
+    if (isCM && !proyectoActivo) {
+      setSyncStatus("Selecciona un proyecto antes de guardar una acción.");
+      return;
+    }
+
     let screenshotUrl = "";
     let screenshotDriveId = "";
     let screenshotPath = "";
@@ -1934,6 +2040,7 @@ useEffect(() => {
     const newRow = {
       ...payload,
       id: uid(),
+      proyectoId: proyectoActivo,
       alcance: toNumber(payload.alcance),
       meGusta: toNumber(payload.meGusta),
       comentarios: toNumber(payload.comentarios),
@@ -1982,7 +2089,9 @@ useEffect(() => {
       seguidores: toNumber(updatedRow.seguidores),
     };
 
-    const { data, error } = await supabase.from("acciones").update(rowToDb(normalizedRow)).eq("id", normalizedRow.id).select().single();
+    const { data, error } = await withProyectoActivo(
+      supabase.from("acciones").update(rowToDb(normalizedRow)).eq("id", normalizedRow.id).select()
+    ).single();
 
     if (error) {
       setSyncStatus(`Error actualizando acción: ${error.message}`);
@@ -1996,9 +2105,14 @@ useEffect(() => {
 
   async function handleAddPauta() {
     if (!pautaForm.url.trim()) return;
+    if (isCM && !proyectoActivo) {
+      setSyncStatus("Selecciona un proyecto antes de guardar contenido pautado.");
+      return;
+    }
 
     const newRow = {
       id: uid(),
+      proyectoId: proyectoActivo,
       fecha: pautaForm.fecha || today(),
       url: pautaForm.url.trim(),
       medio: pautaForm.medio,
@@ -2074,6 +2188,30 @@ const handlePautaChange = (field, value) => {
               </div>
               <h1 className="mt-3 break-words text-3xl font-black tracking-tight text-slate-950 md:text-5xl">Onda Expansiva</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-500 md:text-base">Registro diario de acciones, difusión por red y consolidado ejecutivo para medir alcance e impacto por Community Manager.</p>
+              {isCM && (
+                <div className="mt-4 max-w-sm">
+                  <label className="mb-1 block text-xs font-black uppercase tracking-[0.15em] text-slate-500" htmlFor="proyecto-activo">
+                    Proyecto
+                  </label>
+                  <select
+                    id="proyecto-activo"
+                    value={proyectoActivo || ""}
+                    onChange={(event) => setProyectoActivo(event.target.value || null)}
+                    className="input"
+                    disabled={proyectos.length === 0}
+                  >
+                    {proyectos.length === 0 ? (
+                      <option value="">Sin proyectos asignados</option>
+                    ) : (
+                      proyectos.map((proyecto) => (
+                        <option key={proyecto.id} value={proyecto.id}>
+                          {proyecto.nombre}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              )}
             </div>
             <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end lg:max-w-xl xl:max-w-none">
               <button type="button" onClick={() => handleVistaChange("dashboard")} className={`btn-tab ${vista === "dashboard" ? "btn-tab-active" : ""}`}><IconBarChart className="h-4 w-4" /> Dashboard</button>
@@ -2098,6 +2236,7 @@ const handlePautaChange = (field, value) => {
       <main className="mx-auto grid w-full min-w-0 max-w-7xl gap-5 px-0 py-5 sm:gap-6 sm:py-6">
         {csvStatus && <div className="dashboard-shell rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">{csvStatus}</div>}
         {isLoading && <div className="dashboard-shell rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700">Cargando datos desde Supabase...</div>}
+        {isCM && !isLoading && proyectos.length === 0 && <div className="dashboard-shell rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800">Este usuario no tiene proyectos asignados.</div>}
         {syncStatus && <div className="dashboard-shell rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">{syncStatus}</div>}
 
         {vista === "dashboard" && (
