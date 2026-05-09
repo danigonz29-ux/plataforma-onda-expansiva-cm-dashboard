@@ -2186,7 +2186,7 @@ const handlePautaChange = (field, value) => {
               <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-600 sm:tracking-[0.2em]">
                 <IconActivity className="h-3.5 w-3.5" /> Plataforma de gestión diaria
               </div>
-              <h1 className="mt-3 break-words text-3xl font-black tracking-tight text-slate-950 md:text-5xl">Onda Expansiva</h1>
+              <h1 className="mt-3 break-words text-3xl font-black tracking-tight text-slate-950 md:text-5xl">Bunker JDO</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-500 md:text-base">Registro diario de acciones, difusión por red y consolidado ejecutivo para medir alcance e impacto por Community Manager.</p>
               {isCM && (
                 <div className="mt-4 max-w-sm">
