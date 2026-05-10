@@ -770,7 +770,7 @@ function MiniKpi({ title, value, icon }) {
   );
 }
 
-function OndaHero({ value }) {
+function OndaHero({ value = 0 }) {
   return (
     <section className="relative w-full min-w-0 max-w-full overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white px-5 py-8 shadow-sm sm:rounded-[2rem] sm:px-6 sm:py-10 md:px-10 md:py-14">
       <div className="absolute right-[-90px] top-[-90px] h-48 w-48 rounded-full border-[16px] border-red-100 sm:h-52 sm:w-52 sm:border-[18px]" />
@@ -779,11 +779,11 @@ function OndaHero({ value }) {
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-sm bg-[#ffcc13] text-[#7a4100] sm:h-11 sm:w-11">
           <IconEye className="h-6 w-6" />
         </span>
-        <span className="text-xs font-black uppercase tracking-[0.22em] text-[#d7193f] sm:text-sm sm:tracking-[0.3em]">Reproducciones de Video</span>
+        <span className="text-xs font-black uppercase tracking-[0.22em] text-[#d7193f] sm:text-sm sm:tracking-[0.3em]">ONDA EXPANSIVA</span>
       </div>
       <div className="relative mt-8 text-center sm:mt-10">
         <p className="break-words text-5xl font-black tracking-tight text-[#d7193f] sm:text-6xl md:text-8xl">{fmt(value)}</p>
-        <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500 sm:text-sm md:text-base md:tracking-[0.2em]">Total de reproducciones registradas</p>
+        <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500 sm:text-sm md:text-base md:tracking-[0.2em]">TOTAL DE ONDA EXPANSIVA REGISTRADA</p>
       </div>
     </section>
   );
@@ -2371,7 +2371,7 @@ const handlePautaChange = (field, value) => {
             </section>
 
             <FilterPanel query={query} setQuery={setQuery} responsable={responsable} setResponsable={setResponsable} red={red} setRed={setRed} accion={accion} setAccion={setAccion} catalogos={catalogos} placeholder="Buscar por medio, campaña, hashtag, mención, responsable o red..." dateStart={dateStart} setDateStart={setDateStart} dateEnd={dateEnd} setDateEnd={setDateEnd} clearDateFilters={clearDateFilters} />
-            <OndaHero value={resumenPeriodo.reproduccionesVideo} />
+            <OndaHero value={resumenPeriodo.ondaExpansiva} />
 
             <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard title="Interacciones captadas" value={fmt(resumenPeriodo.interaccionesCaptadas)} subtitle="Me gusta y reacciones" icon={<IconZap className="h-5 w-5" />} color="yellow" />
@@ -2381,7 +2381,7 @@ const handlePautaChange = (field, value) => {
             </section>
 
             <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCard title="Reproducciones de Video registradas" value={fmt(kpis.totalOnda)} subtitle="Total de reproducciones de videos" icon={<IconNetwork className="h-6 w-6" />} tone="dark" />
+              <KpiCard title="Reproducciones de Video registradas" value={fmt(kpis.reproduccionesVideo)} subtitle="Total de reproducciones de videos" icon={<IconNetwork className="h-6 w-6" />} />
               <KpiCard title="Contenidos realizados" value={fmt(kpis.contenidos)} subtitle="Creación de contenido" icon={<IconMegaphone className="h-6 w-6" />} tone="blue" />
               <KpiCard title="Contenidos difundidos" value={fmt(kpis.difundidos)} subtitle="Siembra y amplificación" icon={<IconRadio className="h-6 w-6" />} tone="green" />
               <KpiCard title="Redes activas" value={fmt(kpis.redesActivas)} subtitle="Canales con actividad" icon={<IconUsers className="h-6 w-6" />} tone="orange" />
