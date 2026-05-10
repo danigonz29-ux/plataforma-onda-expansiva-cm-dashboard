@@ -28,6 +28,9 @@ const CHART_COLORS = [
   "#ca8a04",
 ];
 
+const SCREENSHOTS_BUCKET = import.meta.env.VITE_SUPABASE_SCREENSHOTS_BUCKET || "screenshots";
+const MAX_SCREENSHOT_SIZE = 10 * 1024 * 1024;
+
 const CATALOGOS_BASE = {
   responsables: ["CM 1", "CM 2", "CM 3", "CM 4", "CM 5"],
   acciones: [
@@ -147,6 +150,14 @@ function createPautaForm(catalogos = CATALOGOS_BASE) {
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function getScreenshotExtension(file) {
+  const fromName = file.name.split(".").pop()?.toLowerCase();
+  const fromType = file.type.split("/").pop()?.toLowerCase();
+  const extension = fromName || fromType || "jpg";
+
+  return extension.replace(/[^a-z0-9]/g, "") || "jpg";
 }
 
 function rowFromDb(row) {
@@ -1121,12 +1132,14 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
   const onSubmit = async (event) => {
     event.preventDefault();
 
-    await handleSubmit({
+    const saved = await handleSubmit({
       ...form,
       esVideo,
       reproducciones: esVideo ? reproducciones : "",
       screenshot,
     });
+
+    if (!saved) return;
 
     setEsVideo(false);
     setReproducciones("");
@@ -1798,7 +1811,7 @@ useEffect(() => {
     if (rowToDelete?.screenshotPath) {
       try {
         await supabase.storage
-          .from('screenshots')
+          .from(SCREENSHOTS_BUCKET)
           .remove([rowToDelete.screenshotPath]);
       } catch (err) {
         console.error("Error al eliminar screenshot del storage:", err);
@@ -1993,28 +2006,49 @@ useEffect(() => {
   async function handleSubmit(payload = form) {
     if (isCM && !proyectoActivo) {
       setSyncStatus("Selecciona un proyecto antes de guardar una acción.");
-      return;
+      return false;
     }
 
+    const rowId = uid();
     let screenshotUrl = "";
     let screenshotDriveId = "";
     let screenshotPath = "";
     
     // Si hay screenshot (File), subir a Supabase Storage
     if (payload.screenshot instanceof File) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !sessionData?.session?.user) {
+        setSyncStatus("Tu sesión de Supabase no está activa. Cierra sesión, vuelve a entrar e intenta guardar la imagen otra vez.");
+        return false;
+      }
+
+      if (!payload.screenshot.type.startsWith("image/")) {
+        setSyncStatus("El archivo seleccionado debe ser una imagen.");
+        return false;
+      }
+
+      if (payload.screenshot.size > MAX_SCREENSHOT_SIZE) {
+        setSyncStatus("La imagen supera el límite de 10 MB.");
+        return false;
+      }
+
       try {
+        setSyncStatus("Subiendo imagen a Supabase Storage...");
+
         // Generar nombre único del archivo
         const timestamp = Date.now();
         const randomStr = Math.random().toString(36).substring(2, 8);
-        const fileExt = payload.screenshot.name.split('.').pop() || 'jpg';
+        const fileExt = getScreenshotExtension(payload.screenshot);
         const fileName = `${timestamp}-${randomStr}.${fileExt}`;
-        const filePath = `${payload.id}/${fileName}`;
+        const filePath = `${rowId}/${fileName}`;
         
         // Subir archivo a Supabase Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('screenshots')
+          .from(SCREENSHOTS_BUCKET)
           .upload(filePath, payload.screenshot, {
             cacheControl: '3600',
+            contentType: payload.screenshot.type,
             upsert: false,
           });
 
@@ -2024,7 +2058,7 @@ useEffect(() => {
 
         // Obtener URL pública del archivo
         const { data: urlData } = supabase.storage
-          .from('screenshots')
+          .from(SCREENSHOTS_BUCKET)
           .getPublicUrl(filePath);
 
         screenshotUrl = urlData.publicUrl;
@@ -2033,13 +2067,13 @@ useEffect(() => {
       } catch (err) {
         console.error("Error al procesar screenshot:", err);
         setSyncStatus(`Error al guardar la imagen: ${err.message}`);
-        return;
+        return false;
       }
     }
 
     const newRow = {
       ...payload,
-      id: uid(),
+      id: rowId,
       proyectoId: proyectoActivo,
       alcance: toNumber(payload.alcance),
       meGusta: toNumber(payload.meGusta),
@@ -2058,8 +2092,14 @@ useEffect(() => {
     const { data, error } = await supabase.from("acciones").insert(rowToDb(newRow)).select().single();
 
     if (error) {
+      if (screenshotPath) {
+        const { error: cleanupError } = await supabase.storage.from(SCREENSHOTS_BUCKET).remove([screenshotPath]);
+        if (cleanupError) {
+          console.error("Error limpiando screenshot después de fallar el registro:", cleanupError);
+        }
+      }
       setSyncStatus(`Error guardando acción: ${error.message}`);
-      return;
+      return false;
     }
 
     const cleanForm = createForm(catalogos);
@@ -2075,6 +2115,7 @@ useEffect(() => {
 
     setVista("dashboard");
     setSyncStatus("Acción guardada correctamente.");
+    return true;
   }
 
   async function handleSaveEdit(updatedRow) {
