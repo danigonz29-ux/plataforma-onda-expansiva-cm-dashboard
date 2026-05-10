@@ -663,9 +663,9 @@ function EditModal({ open, row, onClose, onSave, catalogos }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 px-4">
-      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="mb-4 text-xl font-black">Editar registro</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 px-4 py-6 sm:py-0">
+      <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl sm:p-6">
+        <h2 className="mb-4 text-lg font-black sm:text-xl">Editar registro</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="text-sm font-bold">
             Fecha
@@ -708,7 +708,7 @@ function EditModal({ open, row, onClose, onSave, catalogos }) {
             <input type="number" className="input" value={editData.seguidores ?? 0} onChange={(e) => setEditData((d) => ({ ...d, seguidores: e.target.value }))} />
           </label>
         </div>
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button type="button" className="btn-tab" onClick={onClose}>Cancelar</button>
           <button type="button" className="btn-primary" onClick={() => onSave(editData)}>Guardar</button>
         </div>
@@ -977,7 +977,7 @@ function ContenidoPautadoSection({ rows, form, catalogos, onChange, onAdd, onDel
       )}
 
       <div className="-mx-4 mt-6 overflow-x-auto border-y border-slate-200 sm:mx-0 sm:rounded-2xl sm:border">
-        <table className="w-full min-w-[1260px] text-left text-sm">
+        <table className="w-full min-w-[320px] sm:min-w-[1100px] lg:min-w-full text-left text-sm">
           <thead>
             <tr className="bg-white text-xs uppercase tracking-wide text-slate-700">
               <th className="px-4 py-4">Fecha</th>
@@ -1069,7 +1069,7 @@ function ConclusionesSection({ rows, dateStart, dateEnd, selectedDate, draft, op
 function FilterPanel({ query, setQuery, responsable, setResponsable, red, setRed, accion, setAccion, catalogos, placeholder, dateStart, setDateStart, dateEnd, setDateEnd, clearDateFilters }) {
   return (
     <section className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem]">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,180px)_minmax(0,180px)_minmax(0,220px)]">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,180px)_minmax(0,180px)_minmax(0,220px)]">
         <div className="relative min-w-0">
           <span className="pointer-events-none absolute left-4 top-3.5 text-slate-400"><IconSearch className="h-4 w-4" /></span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} className="h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none focus:border-slate-500 focus:bg-white" />
@@ -1078,7 +1078,7 @@ function FilterPanel({ query, setQuery, responsable, setResponsable, red, setRed
         <FilterSelect value={red} onChange={setRed} options={["Todas", ...catalogos.redes]} />
         <FilterSelect value={accion} onChange={setAccion} options={["Todas", ...catalogos.acciones]} />
       </div>
-      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-[1fr_1fr_auto] md:items-end">
         <Field label="Fecha inicial">
           <input type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} className="input" />
         </Field>
@@ -1162,7 +1162,7 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <Field label="Fecha">
           <input type="date" value={form.fecha} onChange={(event) => handleChange("fecha", event.target.value)} className="input" required />
         </Field>
@@ -1214,7 +1214,7 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
         </Field>
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-8">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
         <Field label="Alcance">
           <input type="number" min="0" value={form.alcance} onChange={(event) => handleChange("alcance", event.target.value)} className="input" placeholder="0" required />
         </Field>
@@ -1256,7 +1256,7 @@ function RegistroForm({ form, handleChange, handleSubmit, catalogos }) {
       </div>
 
       <div
-        className="mt-4 flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 hover:bg-slate-100"
+        className="mt-4 flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 hover:bg-slate-100 transition-colors sm:min-h-[140px]"
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onClick={() => fileInputRef.current?.click()}
@@ -1306,7 +1306,7 @@ function ConsolidadoTable({ rows, removeRow, onEditRow }) {
       </div>
 
       <div className="-mx-4 overflow-x-auto border-y border-slate-200 sm:mx-0 sm:rounded-2xl sm:border">
-        <table className="w-full min-w-[1180px] text-left text-sm">
+        <table className="w-full min-w-[320px] sm:min-w-[1000px] lg:min-w-full text-left text-sm">
           <thead>
             <tr className="bg-slate-950 text-xs uppercase tracking-wide text-white">
               <th className="px-3 py-3">Fecha</th>
@@ -1543,7 +1543,9 @@ export default function OndaExpansivaApp() {
       const saved = localStorage.getItem("ondaexp_form");
       if (saved) return JSON.parse(saved);
     } catch (err) {
-      console.debug("Error al cargar formulario guardado:", err);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("Error al cargar formulario guardado:", err);
+      }
     }
     return createForm(CATALOGOS_BASE);
   };
@@ -1554,7 +1556,9 @@ export default function OndaExpansivaApp() {
       const saved = localStorage.getItem("ondaexp_pautaform");
       if (saved) return JSON.parse(saved);
     } catch (err) {
-      console.debug("Error al cargar formulario pauta guardado:", err);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("Error al cargar formulario pauta guardado:", err);
+      }
     }
     return createPautaForm(CATALOGOS_BASE);
   };
@@ -1570,7 +1574,9 @@ const [vista, setVista] = useState(() => {
   try {
     return localStorage.getItem("ondaexp_vista") || "dashboard";
   } catch (err) {
-    console.debug("Error al cargar vista guardada:", err);
+    if (process.env.NODE_ENV === "development") {
+      console.debug("Error al cargar vista guardada:", err);
+    }
     return "dashboard";
   }
 });
@@ -1582,7 +1588,9 @@ useEffect(() => {
     try {
       localStorage.setItem("ondaexp_vista", "dashboard");
     } catch (err) {
-      console.debug("Error guardando vista:", err);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("Error guardando vista:", err);
+      }
     }
   }
 }, [isCM, vista]);
@@ -2003,6 +2011,53 @@ useEffect(() => {
     }
   }
 
+  async function compressImage(file, maxWidth = 1200, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let { width, height } = img;
+          
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error("No se pudo comprimir la imagen"));
+                return;
+              }
+              const compressedFile = new File([blob], file.name, {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+        img.onerror = () => {
+          reject(new Error("No se pudo cargar la imagen"));
+        };
+      };
+      reader.onerror = () => {
+        reject(new Error("Error al leer el archivo"));
+      };
+    });
+  }
+
   async function handleSubmit(payload = form) {
     if (isCM && !proyectoActivo) {
       setSyncStatus("Selecciona un proyecto antes de guardar una acción.");
@@ -2034,21 +2089,35 @@ useEffect(() => {
       }
 
       try {
-        setSyncStatus("Subiendo imagen a Supabase Storage...");
+        setSyncStatus("Comprimiendo y subiendo imagen...");
+
+        let fileToUpload = payload.screenshot;
+        
+        // Comprimir imagen si es muy grande
+        if (payload.screenshot.size > 1024 * 1024) {
+          try {
+            fileToUpload = await compressImage(payload.screenshot, 1200, 0.8);
+          } catch (compressErr) {
+            if (process.env.NODE_ENV === "development") {
+              console.debug("Advertencia al comprimir imagen:", compressErr);
+            }
+            // Continuar con la imagen original si falla la compresión
+          }
+        }
 
         // Generar nombre único del archivo
         const timestamp = Date.now();
         const randomStr = Math.random().toString(36).substring(2, 8);
-        const fileExt = getScreenshotExtension(payload.screenshot);
+        const fileExt = getScreenshotExtension(fileToUpload);
         const fileName = `${timestamp}-${randomStr}.${fileExt}`;
         const filePath = `${rowId}/${fileName}`;
         
         // Subir archivo a Supabase Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from(SCREENSHOTS_BUCKET)
-          .upload(filePath, payload.screenshot, {
+          .upload(filePath, fileToUpload, {
             cacheControl: '3600',
-            contentType: payload.screenshot.type,
+            contentType: fileToUpload.type,
             upsert: false,
           });
 
@@ -2197,7 +2266,9 @@ useEffect(() => {
     try {
       localStorage.setItem("ondaexp_form", JSON.stringify(next));
     } catch (err) {
-      console.debug("Error guardando formulario:", err);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("Error guardando formulario:", err);
+      }
     }
 
     return next;
@@ -2211,7 +2282,9 @@ const handlePautaChange = (field, value) => {
     try {
       localStorage.setItem("ondaexp_pautaform", JSON.stringify(next));
     } catch (err) {
-      console.debug("Error guardando formulario pauta:", err);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("Error guardando formulario pauta:", err);
+      }
     }
 
     return next;
@@ -2314,7 +2387,7 @@ const handlePautaChange = (field, value) => {
             <section className="grid w-full min-w-0 max-w-full gap-5 xl:grid-cols-2">
               <ChartCard title="Onda expansiva por Community Manager" subtitle="Total acumulado por responsable">
                 {ondaPorCm.length === 0 ? <EmptyState text="No hay acciones registradas por responsable." /> : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={ondaPorCm} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 12 }} />
@@ -2328,7 +2401,7 @@ const handlePautaChange = (field, value) => {
 
               <ChartCard title="Acciones por red" subtitle="Distribución de publicaciones y siembras">
                 {accionesPorRed.length === 0 ? <EmptyState text="No hay acciones registradas por red." /> : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
                       <Pie data={accionesPorRed} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={3} label>
                         {accionesPorRed.map((entry, index) => <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
@@ -2342,7 +2415,7 @@ const handlePautaChange = (field, value) => {
 
               <ChartCard title="Evolución diaria de la onda expansiva" subtitle="Comportamiento por fecha registrada">
                 {ondaPorFecha.length === 0 ? <EmptyState text="No hay evolución diaria para mostrar." /> : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={250}>
                     <AreaChart data={ondaPorFecha} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="ondaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -2362,7 +2435,7 @@ const handlePautaChange = (field, value) => {
 
               <ChartCard title="Acciones por tipo" subtitle="Qué está haciendo el equipo diariamente">
                 {accionesPorTipo.length === 0 ? <EmptyState text="No hay acciones por tipo registradas." /> : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={accionesPorTipo} layout="vertical" margin={{ top: 16, right: 20, left: 16, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis type="number" tick={{ fill: "#64748b", fontSize: 12 }} />
