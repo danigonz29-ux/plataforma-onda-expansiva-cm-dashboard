@@ -295,10 +295,6 @@ function fmtPct(value) {
 }
 
 function getOnda(row) {
-  // Si es video, suma las reproducciones; si no, suma el alcance y otras métricas
-  if (row.esVideo) {
-    return toNumber(row.reproducciones);
-  }
   return (
     toNumber(row.alcance) +
     toNumber(row.meGusta) +
@@ -1754,19 +1750,22 @@ useEffect(() => {
       0
     );
     const seguidoresCaptados = filteredRows.reduce((sum, row) => sum + toNumber(row.seguidores), 0);
+    // Reproducción de Video: solo suma las reproducciones de filas donde esVideo === true
+    const reproduccionesVideo = filteredRows.reduce((sum, row) => (row.esVideo ? sum + toNumber(row.reproducciones) : sum), 0);
+    // Onda Expansiva mantiene la lógica original para otros tipos de contenido
     const ondaExpansiva = filteredRows.reduce((sum, row) => sum + getOnda(row), 0);
 
-    return { ondaExpansiva, interaccionesCaptadas, compartidos, comentarios, seguidoresCaptados };
+    return { ondaExpansiva, reproduccionesVideo, interaccionesCaptadas, compartidos, comentarios, seguidoresCaptados };
   }, [filteredRows]);
 
   const kpis = useMemo(
     () => ({
-      totalOnda: resumenPeriodo.ondaExpansiva,
+      totalOnda: resumenPeriodo.reproduccionesVideo,
       contenidos: filteredRows.filter((row) => row.accion === "Creación de contenido").length,
       difundidos: filteredRows.filter((row) => row.accion !== "Creación de contenido").length,
       redesActivas: new Set(filteredRows.map((row) => row.red)).size,
     }),
-    [filteredRows, resumenPeriodo.ondaExpansiva]
+    [filteredRows, resumenPeriodo.reproduccionesVideo]
   );
 
   const accionesPorRed = useMemo(() => groupBy(filteredRows, "red"), [filteredRows]);
@@ -2372,7 +2371,7 @@ const handlePautaChange = (field, value) => {
             </section>
 
             <FilterPanel query={query} setQuery={setQuery} responsable={responsable} setResponsable={setResponsable} red={red} setRed={setRed} accion={accion} setAccion={setAccion} catalogos={catalogos} placeholder="Buscar por medio, campaña, hashtag, mención, responsable o red..." dateStart={dateStart} setDateStart={setDateStart} dateEnd={dateEnd} setDateEnd={setDateEnd} clearDateFilters={clearDateFilters} />
-            <OndaHero value={resumenPeriodo.ondaExpansiva} />
+            <OndaHero value={resumenPeriodo.reproduccionesVideo} />
 
             <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard title="Interacciones captadas" value={fmt(resumenPeriodo.interaccionesCaptadas)} subtitle="Me gusta y reacciones" icon={<IconZap className="h-5 w-5" />} color="yellow" />
