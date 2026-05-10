@@ -295,6 +295,10 @@ function fmtPct(value) {
 }
 
 function getOnda(row) {
+  // Si es video, suma las reproducciones; si no, suma el alcance y otras métricas
+  if (row.esVideo) {
+    return toNumber(row.reproducciones);
+  }
   return (
     toNumber(row.alcance) +
     toNumber(row.meGusta) +
@@ -777,13 +781,13 @@ function OndaHero({ value }) {
       <div className="absolute right-[12px] top-[-62px] h-32 w-32 rounded-full border-[12px] border-yellow-100 sm:right-[60px] sm:top-[-50px] sm:h-36 sm:w-36 sm:border-[14px]" />
       <div className="relative flex items-center gap-3">
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-sm bg-[#ffcc13] text-[#7a4100] sm:h-11 sm:w-11">
-          <IconZap className="h-6 w-6" />
+          <IconEye className="h-6 w-6" />
         </span>
-        <span className="text-xs font-black uppercase tracking-[0.22em] text-[#d7193f] sm:text-sm sm:tracking-[0.3em]">Onda Expansiva</span>
+        <span className="text-xs font-black uppercase tracking-[0.22em] text-[#d7193f] sm:text-sm sm:tracking-[0.3em]">Reproducciones de Video</span>
       </div>
       <div className="relative mt-8 text-center sm:mt-10">
         <p className="break-words text-5xl font-black tracking-tight text-[#d7193f] sm:text-6xl md:text-8xl">{fmt(value)}</p>
-        <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500 sm:text-sm md:text-base md:tracking-[0.2em]">Alcance estimado total</p>
+        <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500 sm:text-sm md:text-base md:tracking-[0.2em]">Total de reproducciones registradas</p>
       </div>
     </section>
   );
@@ -1316,7 +1320,7 @@ function ConsolidadoTable({ rows, removeRow, onEditRow }) {
               <th className="px-3 py-3">Medio / perfil / grupo</th>
               <th className="px-3 py-3">Campaña</th>
               <th className="px-3 py-3 text-right">Alcance</th>
-              <th className="px-3 py-3 text-right">Onda expansiva</th>
+              <th className="px-3 py-3 text-right">Reproducciones Video</th>
               <th className="px-3 py-3 text-right">Seguidores</th>
               <th className="px-3 py-3">Estado en Grupos</th>
               <th className="px-3 py-3"></th>
@@ -2378,14 +2382,14 @@ const handlePautaChange = (field, value) => {
             </section>
 
             <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCard title="Onda expansiva registrada" value={fmt(kpis.totalOnda)} subtitle="Desde acciones diligenciadas" icon={<IconNetwork className="h-6 w-6" />} tone="dark" />
+              <KpiCard title="Reproducciones de Video registradas" value={fmt(kpis.totalOnda)} subtitle="Total de reproducciones de videos" icon={<IconNetwork className="h-6 w-6" />} tone="dark" />
               <KpiCard title="Contenidos realizados" value={fmt(kpis.contenidos)} subtitle="Creación de contenido" icon={<IconMegaphone className="h-6 w-6" />} tone="blue" />
               <KpiCard title="Contenidos difundidos" value={fmt(kpis.difundidos)} subtitle="Siembra y amplificación" icon={<IconRadio className="h-6 w-6" />} tone="green" />
               <KpiCard title="Redes activas" value={fmt(kpis.redesActivas)} subtitle="Canales con actividad" icon={<IconUsers className="h-6 w-6" />} tone="orange" />
             </section>
 
             <section className="grid w-full min-w-0 max-w-full gap-5 xl:grid-cols-2">
-              <ChartCard title="Onda expansiva por Community Manager" subtitle="Total acumulado por responsable">
+              <ChartCard title="Reproducciones de Video por Community Manager" subtitle="Total acumulado por responsable">
                 {ondaPorCm.length === 0 ? <EmptyState text="No hay acciones registradas por responsable." /> : (
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={ondaPorCm} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
@@ -2413,7 +2417,7 @@ const handlePautaChange = (field, value) => {
                 )}
               </ChartCard>
 
-              <ChartCard title="Evolución diaria de la onda expansiva" subtitle="Comportamiento por fecha registrada">
+              <ChartCard title="Evolución diaria de Reproducciones de Video" subtitle="Comportamiento por fecha registrada">
                 {ondaPorFecha.length === 0 ? <EmptyState text="No hay evolución diaria para mostrar." /> : (
                   <ResponsiveContainer width="100%" height={250}>
                     <AreaChart data={ondaPorFecha} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
