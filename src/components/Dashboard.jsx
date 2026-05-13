@@ -1583,10 +1583,8 @@ export default function OndaExpansivaApp() {
     try {
       const saved = localStorage.getItem("ondaexp_form");
       if (saved) return JSON.parse(saved);
-    } catch (err) {
-      if (process.env.NODE_ENV === "development") {
-        console.debug("Error al cargar formulario guardado:", err);
-      }
+    } catch {
+      // Si el almacenamiento local falla, usamos el formulario base.
     }
     return createForm(CATALOGOS_BASE);
   };
@@ -1596,10 +1594,8 @@ export default function OndaExpansivaApp() {
     try {
       const saved = localStorage.getItem("ondaexp_pautaform");
       if (saved) return JSON.parse(saved);
-    } catch (err) {
-      if (process.env.NODE_ENV === "development") {
-        console.debug("Error al cargar formulario pauta guardado:", err);
-      }
+    } catch {
+      // Si el almacenamiento local falla, usamos el formulario base.
     }
     return createPautaForm(CATALOGOS_BASE);
   };
@@ -1611,30 +1607,25 @@ export default function OndaExpansivaApp() {
   const [accion, setAccion] = useState("Todas");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
-const [vista, setVista] = useState(() => {
-  try {
-    return localStorage.getItem("ondaexp_vista") || "dashboard";
-  } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.debug("Error al cargar vista guardada:", err);
-    }
-    return "dashboard";
-  }
-});
-
-useEffect(() => {
-  if (!isCM && vista !== "dashboard") {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setVista("dashboard");
+  const [vista, setVista] = useState(() => {
     try {
-      localStorage.setItem("ondaexp_vista", "dashboard");
-    } catch (err) {
-      if (process.env.NODE_ENV === "development") {
-        console.debug("Error guardando vista:", err);
+      return localStorage.getItem("ondaexp_vista") || "dashboard";
+    } catch {
+      return "dashboard";
+    }
+  });
+
+  useEffect(() => {
+    if (!isCM && vista !== "dashboard") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setVista("dashboard");
+      try {
+        localStorage.setItem("ondaexp_vista", "dashboard");
+      } catch {
+        // La vista en memoria queda actualizada aunque localStorage no esté disponible.
       }
     }
-  }
-}, [isCM, vista]);
+  }, [isCM, vista]);
   
   const [mostrarContactoDirecto, setMostrarContactoDirecto] = useState(true);
   const [mostrarContenidoPautado, setMostrarContenidoPautado] = useState(true);
@@ -1743,8 +1734,6 @@ useEffect(() => {
       if (mounted) {
         setCatalogos(nextCatalogos);
         setRows(safeArray(accionesResult.data).map(rowFromDb));
-        //console.log("REGISTROS TRAIDOS DE SUPABASE:", accionesResult.data?.length);
-        //console.log("REGISTROS DESPUES DE MAP:", safeArray(accionesResult.data).map(rowFromDb).length);
         setPautaRows(safeArray(pautaResult.data).map(pautaFromDb));
         setConclusionesPorFecha(conclusionesFromDb(conclusionesResult.data));
         setIsLoading(false);
@@ -1779,8 +1768,7 @@ useEffect(() => {
       );
     });
   }, [rows, query, responsable, red, accion, dateStart, dateEnd]);
-//console.log("REGISTROS FILTRADOS EN TABLERO:", filteredRows.length);
-//console.log("FILTROS ACTIVOS:", { query, responsable, red, accion, dateStart, dateEnd });
+
   const filteredPautaRows = useMemo(
     () => pautaRows.filter((row) => (!dateStart || String(row.fecha || "") >= dateStart) && (!dateEnd || String(row.fecha || "") <= dateEnd)),
     [pautaRows, dateStart, dateEnd]
@@ -1886,8 +1874,7 @@ const kpis = useMemo(
         await supabase.storage
           .from(SCREENSHOTS_BUCKET)
           .remove([rowToDelete.screenshotPath]);
-      } catch (err) {
-        console.error("Error al eliminar screenshot del storage:", err);
+      } catch {
         // Continuar con la eliminación del registro aunque falle el storage
       }
     }
@@ -2048,20 +2035,20 @@ const kpis = useMemo(
     setSyncStatus("Conclusiones guardadas correctamente.");
   }
 
- function handleVistaChange(nextVista) {
-  setVista(nextVista);
-  setCsvStatus("");
+  function handleVistaChange(nextVista) {
+    setVista(nextVista);
+    setCsvStatus("");
 
-  try {
-    localStorage.setItem("ondaexp_vista", nextVista);
-  } catch (err) {
-    console.debug("Error guardando vista:", err);
-  }
+    try {
+      localStorage.setItem("ondaexp_vista", nextVista);
+    } catch {
+      // La vista en memoria queda actualizada aunque localStorage no esté disponible.
+    }
 
-  if (typeof window !== "undefined") {
-    window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
+    }
   }
-}
 
   function handleCsvExport() {
     const ok = downloadCsv(filteredRows);
@@ -2162,10 +2149,7 @@ const kpis = useMemo(
         if (payload.screenshot.size > 1024 * 1024) {
           try {
             fileToUpload = await compressImage(payload.screenshot, 1200, 0.8);
-          } catch (compressErr) {
-            if (process.env.NODE_ENV === "development") {
-              console.debug("Advertencia al comprimir imagen:", compressErr);
-            }
+          } catch {
             // Continuar con la imagen original si falla la compresión
           }
         }
@@ -2199,7 +2183,6 @@ const kpis = useMemo(
         screenshotDriveId = uploadData.id;
         screenshotPath = filePath;
       } catch (err) {
-        console.error("Error al procesar screenshot:", err);
         setSyncStatus(`Error al guardar la imagen: ${err.message}`);
         return false;
       }
@@ -2227,10 +2210,7 @@ const kpis = useMemo(
 
     if (error) {
       if (screenshotPath) {
-        const { error: cleanupError } = await supabase.storage.from(SCREENSHOTS_BUCKET).remove([screenshotPath]);
-        if (cleanupError) {
-          console.error("Error limpiando screenshot después de fallar el registro:", cleanupError);
-        }
+        await supabase.storage.from(SCREENSHOTS_BUCKET).remove([screenshotPath]);
       }
       setSyncStatus(`Error guardando acción: ${error.message}`);
       return false;
@@ -2243,8 +2223,8 @@ const kpis = useMemo(
 
     try {
       localStorage.setItem("ondaexp_form", JSON.stringify(cleanForm));
-    } catch (err) {
-      console.debug("Error guardando formulario:", err);
+    } catch {
+      // El registro ya quedó guardado aunque no se pueda persistir el borrador local.
     }
 
     setVista("dashboard");
@@ -2312,8 +2292,8 @@ const kpis = useMemo(
 
     try {
       localStorage.setItem("ondaexp_pautaform", JSON.stringify(cleanPautaForm));
-    } catch (err) {
-      console.debug("Error guardando formulario pauta:", err);
+    } catch {
+      // El registro ya quedó guardado aunque no se pueda persistir el borrador local.
     }
 
     setSyncStatus("Contenido pautado guardado correctamente.");
@@ -2324,37 +2304,33 @@ const kpis = useMemo(
     setDateEnd("");
   };
 
- const handleChange = (field, value) => {
-  setForm((prev) => {
-    const next = { ...prev, [field]: value };
+  const handleChange = (field, value) => {
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
 
-    try {
-      localStorage.setItem("ondaexp_form", JSON.stringify(next));
-    } catch (err) {
-      if (process.env.NODE_ENV === "development") {
-        console.debug("Error guardando formulario:", err);
+      try {
+        localStorage.setItem("ondaexp_form", JSON.stringify(next));
+      } catch {
+        // El estado de React conserva el borrador aunque localStorage no esté disponible.
       }
-    }
 
-    return next;
-  });
-};
+      return next;
+    });
+  };
 
-const handlePautaChange = (field, value) => {
-  setPautaForm((prev) => {
-    const next = { ...prev, [field]: value };
+  const handlePautaChange = (field, value) => {
+    setPautaForm((prev) => {
+      const next = { ...prev, [field]: value };
 
-    try {
-      localStorage.setItem("ondaexp_pautaform", JSON.stringify(next));
-    } catch (err) {
-      if (process.env.NODE_ENV === "development") {
-        console.debug("Error guardando formulario pauta:", err);
+      try {
+        localStorage.setItem("ondaexp_pautaform", JSON.stringify(next));
+      } catch {
+        // El estado de React conserva el borrador aunque localStorage no esté disponible.
       }
-    }
 
-    return next;
-  });
-};
+      return next;
+    });
+  };
 
   return (
     <div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-[#f5f7fb] text-slate-900">
