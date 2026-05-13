@@ -739,19 +739,60 @@ function KpiCard({ title, value, subtitle, icon, tone = "dark" }) {
   );
 }
 
-function MetricCard({ title, value, subtitle, icon, color }) {
+function MetricCard({ title, value, subtitle, icon, color, editable, onValueChange }) {
   const colors = {
     yellow: "bg-[#ffcc13] text-[#7a4100]",
     purple: "bg-[#b979f2] text-white",
     brown: "bg-[#812d14] text-white",
     red: "bg-[#e32227] text-white",
   };
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value);
+
+  useEffect(() => {
+    setEditValue(value);
+  }, [value]);
+
+  const handleEdit = () => {
+    if (editable) setIsEditing(true);
+  };
+  const handleBlur = () => {
+    setIsEditing(false);
+    if (onValueChange && editValue !== value) onValueChange(editValue);
+  };
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === "Escape") {
+      setIsEditing(false);
+      if (onValueChange && editValue !== value) onValueChange(editValue);
+    }
+  };
 
   return (
     <div className={`relative min-h-[170px] min-w-0 max-w-full overflow-hidden rounded-[1.35rem] ${colors[color] || colors.red} p-5 shadow-lg shadow-slate-200 sm:rounded-[1.6rem] sm:p-6`}>
       <div className="absolute right-4 top-4 rounded-xl bg-white/15 p-3 sm:right-5 sm:top-5">{icon}</div>
       <p className="max-w-[78%] text-[0.68rem] font-black uppercase tracking-[0.2em] opacity-80 sm:text-xs sm:tracking-[0.24em]">{title}</p>
-      <p className="mt-10 break-words text-center text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">{value}</p>
+      <div className="mt-10 flex justify-center">
+        {editable && isEditing ? (
+          <input
+            type="number"
+            className="text-center text-3xl font-black tracking-tight sm:text-4xl md:text-5xl rounded bg-white/80 text-black px-2 py-1 outline-none"
+            value={editValue}
+            autoFocus
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            style={{ width: "90px" }}
+          />
+        ) : (
+          <p
+            className="break-words text-center text-3xl font-black tracking-tight sm:text-4xl md:text-5xl cursor-pointer select-none"
+            onClick={handleEdit}
+            title={editable ? "Haz clic para editar" : undefined}
+          >
+            {value}
+          </p>
+        )}
+      </div>
       <div className="my-3 border-t border-dashed border-current opacity-25" />
       <p className="text-sm font-semibold opacity-70">{subtitle}</p>
     </div>
@@ -1702,6 +1743,8 @@ useEffect(() => {
       if (mounted) {
         setCatalogos(nextCatalogos);
         setRows(safeArray(accionesResult.data).map(rowFromDb));
+        //console.log("REGISTROS TRAIDOS DE SUPABASE:", accionesResult.data?.length);
+        //console.log("REGISTROS DESPUES DE MAP:", safeArray(accionesResult.data).map(rowFromDb).length);
         setPautaRows(safeArray(pautaResult.data).map(pautaFromDb));
         setConclusionesPorFecha(conclusionesFromDb(conclusionesResult.data));
         setIsLoading(false);
@@ -1736,7 +1779,8 @@ useEffect(() => {
       );
     });
   }, [rows, query, responsable, red, accion, dateStart, dateEnd]);
-
+//console.log("REGISTROS FILTRADOS EN TABLERO:", filteredRows.length);
+//console.log("FILTROS ACTIVOS:", { query, responsable, red, accion, dateStart, dateEnd });
   const filteredPautaRows = useMemo(
     () => pautaRows.filter((row) => (!dateStart || String(row.fecha || "") >= dateStart) && (!dateEnd || String(row.fecha || "") <= dateEnd)),
     [pautaRows, dateStart, dateEnd]
@@ -1758,15 +1802,33 @@ useEffect(() => {
     return { ondaExpansiva, reproduccionesVideo, interaccionesCaptadas, compartidos, comentarios, seguidoresCaptados };
   }, [filteredRows]);
 
-  const kpis = useMemo(
-    () => ({
-      totalOnda: resumenPeriodo.reproduccionesVideo,
-      contenidos: filteredRows.filter((row) => row.accion === "Creación de contenido").length,
-      difundidos: filteredRows.filter((row) => row.accion !== "Creación de contenido").length,
-      redesActivas: new Set(filteredRows.map((row) => row.red)).size,
-    }),
-    [filteredRows, resumenPeriodo.reproduccionesVideo]
-  );
+  const [editableMetrics, setEditableMetrics] = useState({
+  interaccionesCaptadas: 0,
+  compartidos: 0,
+  comentarios: 0,
+  accionesTropa: 0,
+});
+
+useEffect(() => {
+  setEditableMetrics((m) => ({
+    ...m,
+    interaccionesCaptadas: resumenPeriodo?.interaccionesCaptadas || 0,
+    compartidos: resumenPeriodo?.compartidos || 0,
+    comentarios: resumenPeriodo?.comentarios || 0,
+    accionesTropa: filteredRows?.length || 0,
+  }));
+}, [resumenPeriodo, filteredRows]);
+
+const kpis = useMemo(
+  () => ({
+    totalOnda: resumenPeriodo.reproduccionesVideo,
+    contenidos: filteredRows.filter((row) => row.accion === "Creación de contenido").length,
+    difundidos: filteredRows.filter((row) => row.accion !== "Creación de contenido").length,
+    redesActivas: new Set(filteredRows.map((row) => row.red)).size,
+  }),
+  [filteredRows, resumenPeriodo.reproduccionesVideo]
+);
+
 
   const accionesPorRed = useMemo(() => groupBy(filteredRows, "red"), [filteredRows]);
   const ondaPorCm = useMemo(() => groupBy(filteredRows, "responsable", getOnda), [filteredRows]);
@@ -2374,10 +2436,38 @@ const handlePautaChange = (field, value) => {
             <OndaHero value={resumenPeriodo.ondaExpansiva} />
 
             <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard title="Interacciones captadas" value={fmt(resumenPeriodo.interaccionesCaptadas)} subtitle="Me gusta y reacciones" icon={<IconZap className="h-5 w-5" />} color="yellow" />
-              <MetricCard title="Compartido" value={fmt(resumenPeriodo.compartidos)} subtitle="Compartidos, reposts e historias" icon={<IconShare className="h-5 w-5" />} color="purple" />
-              <MetricCard title="Comentarios" value={fmt(resumenPeriodo.comentarios)} subtitle="Total comentarios" icon={<IconComment className="h-5 w-5" />} color="brown" />
-              <MetricCard title="Seguidores captados" value={fmt(resumenPeriodo.seguidoresCaptados)} subtitle="Nuevos seguidores" icon={<IconUserPlus className="h-5 w-5" />} color="red" />
+              <MetricCard
+                title="Interacciones captadas"
+                value={fmt(editableMetrics.interaccionesCaptadas)}
+                subtitle="Me gusta y reacciones"
+                icon={<IconZap className="h-5 w-5" />} color="yellow"
+                editable
+                onValueChange={v => setEditableMetrics(m => ({ ...m, interaccionesCaptadas: Number(v) }))}
+              />
+              <MetricCard
+                title="Compartido"
+                value={fmt(editableMetrics.compartidos)}
+                subtitle="Compartidos, reposts e historias"
+                icon={<IconShare className="h-5 w-5" />} color="purple"
+                editable
+                onValueChange={v => setEditableMetrics(m => ({ ...m, compartidos: Number(v) }))}
+              />
+              <MetricCard
+                title="Comentarios"
+                value={fmt(editableMetrics.comentarios)}
+                subtitle="Total comentarios"
+                icon={<IconComment className="h-5 w-5" />} color="brown"
+                editable
+                onValueChange={v => setEditableMetrics(m => ({ ...m, comentarios: Number(v) }))}
+              />
+              <MetricCard
+                title="Acciones de Tropa Totales"
+                value={fmt(editableMetrics.accionesTropa)}
+                subtitle="Total de acciones registradas"
+                icon={<IconUserPlus className="h-5 w-5" />} color="red"
+                editable
+                onValueChange={v => setEditableMetrics(m => ({ ...m, accionesTropa: Number(v) }))}
+              />
             </section>
 
             <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
