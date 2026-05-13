@@ -17,787 +17,21 @@ import {
   YAxis,
 } from "recharts";
 
-const CHART_COLORS = [
-  "#0f172a",
-  "#2563eb",
-  "#16a34a",
-  "#f97316",
-  "#9333ea",
-  "#dc2626",
-  "#0891b2",
-  "#ca8a04",
-];
-
-const SCREENSHOTS_BUCKET = import.meta.env.VITE_SUPABASE_SCREENSHOTS_BUCKET || "screenshots";
-const MAX_SCREENSHOT_SIZE = 10 * 1024 * 1024;
-
-const CATALOGOS_BASE = {
-  responsables: ["CM 1", "CM 2", "CM 3", "CM 4", "CM 5"],
-  acciones: [
-    "Creación de contenido",
-    "Difusión",
-    "Sembrado de opinión",
-    "Apoyo redes",
-    "Monitoreo",
-    "Cobertura",
-    "Comentario",
-    "Retweet / Repost",
-    "Historia",
-  ],
-  redes: ["Facebook", "Instagram", "TikTok", "X", "YouTube", "LinkedIn", "WhatsApp", "Landing"],
-  campanas: [
-    "Seguridad",
-    "Economía",
-    "Salud",
-    "Propuestas",
-    "Opinión presidencial",
-    "Tutela",
-    "Campaña",
-    "Gestión institucional",
-  ],
-  estadosGrupo: ["Activo", "Pendiente", "Revisión", "Publicado", "Descartado"],
-  mediosPauta: ["Facebook", "Instagram", "TikTok", "Twitter/X", "LinkedIn", "YouTube", "Google Ads", "Landing"],
-};
-
-const CONTACTO_DIRECTO_BASE = {
-  diasCampana: 0,
-  sms: { enviosDiarios: 0, frecuencia: "", total: 0, costoTotal: 0 },
-  llamadas: { realizadas: 0, frecuencia: "", total: 0, costoTotal: 0 },
-};
-
-function uid() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function safeArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function mergeCatalogos(value) {
-  const parsed = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-
-  return Object.fromEntries(
-    Object.entries(CATALOGOS_BASE).map(([key, fallback]) => {
-      const items = Array.isArray(parsed[key]) && parsed[key].length ? parsed[key] : fallback;
-
-      return [
-        key,
-        Array.from(
-          new Set(
-            items
-              .map(String)
-              .map((item) => item.trim())
-              .filter(Boolean)
-          )
-        ),
-      ];
-    })
-  );
-}
-
-function createForm(catalogos = CATALOGOS_BASE) {
-  return {
-    fecha: today(),
-    responsable: catalogos.responsables[0] || "",
-    accion: catalogos.acciones[1] || catalogos.acciones[0] || "",
-    cliente: "Cliente / Marca",
-    red: catalogos.redes[0] || "",
-    perfilGrupo: "",
-    linkPerfil: "",
-    linkPublicacion: "",
-    hashtag1: "",
-    hashtag2: "",
-    mencion: "",
-    tema: catalogos.campanas[0] || "",
-    estado: catalogos.estadosGrupo[0] || "",
-    perfilDifusion: "",
-    alcance: "",
-    meGusta: "",
-    comentarios: "",
-    compartidos: "",
-    retweets: "",
-    historias: "",
-    seguidores: "",
-    notas: "",
-    esVideo: false,
-    reproducciones: "",
-    screenshotDriveId: "",
-    screenshotPath: "",
-    screenshotUrl: "",
-  };
-}
-
-function createPautaForm(catalogos = CATALOGOS_BASE) {
-  return {
-    fecha: today(),
-    url: "",
-    medio: catalogos.mediosPauta[0] || "",
-    alcance: "",
-    costo: "",
-    interacciones: "",
-    ctr: "",
-    visualizaciones: "",
-  };
-}
-
-function toNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function getScreenshotExtension(file) {
-  const fromName = file.name.split(".").pop()?.toLowerCase();
-  const fromType = file.type.split("/").pop()?.toLowerCase();
-  const extension = fromName || fromType || "jpg";
-
-  return extension.replace(/[^a-z0-9]/g, "") || "jpg";
-}
-
-function rowFromDb(row) {
-  return {
-    id: row.id,
-    proyectoId: row.proyecto_id || "",
-    fecha: row.fecha || today(),
-    responsable: row.responsable || "",
-    accion: row.accion || "",
-    cliente: row.cliente || "",
-    red: row.red || "",
-    perfilGrupo: row.perfil_grupo || "",
-    linkPerfil: row.link_perfil || "",
-    linkPublicacion: row.link_publicacion || "",
-    hashtag1: row.hashtag1 || "",
-    hashtag2: row.hashtag2 || "",
-    mencion: row.mencion || "",
-    tema: row.tema || "",
-    estado: row.estado || "",
-    perfilDifusion: row.perfil_difusion || "",
-    alcance: toNumber(row.alcance),
-    meGusta: toNumber(row.me_gusta),
-    comentarios: toNumber(row.comentarios),
-    compartidos: toNumber(row.compartidos),
-    retweets: toNumber(row.retweets),
-    historias: toNumber(row.historias),
-    seguidores: toNumber(row.seguidores),
-    notas: row.notas || "",
-    esVideo: row.es_video || false,
-    reproducciones: toNumber(row.reproducciones),
-    screenshotDriveId: row.screenshot_drive_id || "",
-    screenshotPath: row.screenshot_path || "",
-    screenshotUrl: row.screenshot_url || "",
-  };
-}
-
-function rowToDb(row) {
-  return {
-    id: row.id,
-    proyecto_id: row.proyectoId || row.proyecto_id || null,
-    fecha: row.fecha,
-    responsable: row.responsable,
-    accion: row.accion,
-    cliente: row.cliente,
-    red: row.red,
-    perfil_grupo: row.perfilGrupo,
-    link_perfil: row.linkPerfil,
-    link_publicacion: row.linkPublicacion,
-    hashtag1: row.hashtag1,
-    hashtag2: row.hashtag2,
-    mencion: row.mencion,
-    tema: row.tema,
-    estado: row.estado,
-    perfil_difusion: row.perfilDifusion,
-    alcance: toNumber(row.alcance),
-    me_gusta: toNumber(row.meGusta),
-    comentarios: toNumber(row.comentarios),
-    compartidos: toNumber(row.compartidos),
-    retweets: toNumber(row.retweets),
-    historias: toNumber(row.historias),
-    seguidores: toNumber(row.seguidores),
-    notas: row.notas,
-    es_video: row.esVideo || false,
-    reproducciones: toNumber(row.reproducciones),
-    screenshot_drive_id: row.screenshotDriveId || "",
-    screenshot_path: row.screenshotPath || "",
-    screenshot_url: row.screenshotUrl || "",
-  };
-}
-
-function pautaFromDb(row) {
-  return {
-    id: row.id,
-    proyectoId: row.proyecto_id || "",
-    fecha: row.fecha || today(),
-    url: row.url || "",
-    medio: row.medio || "",
-    alcance: toNumber(row.alcance),
-    costo: toNumber(row.costo),
-    interacciones: toNumber(row.interacciones),
-    ctr: toNumber(row.ctr),
-    visualizaciones: toNumber(row.visualizaciones),
-  };
-}
-
-function pautaToDb(row) {
-  return {
-    id: row.id,
-    proyecto_id: row.proyectoId || row.proyecto_id || null,
-    fecha: row.fecha,
-    url: row.url,
-    medio: row.medio,
-    alcance: toNumber(row.alcance),
-    costo: toNumber(row.costo),
-    interacciones: toNumber(row.interacciones),
-    ctr: toNumber(row.ctr),
-    visualizaciones: toNumber(row.visualizaciones),
-  };
-}
-
-function catalogosFromDb(rows) {
-  const parsed = {};
-  safeArray(rows).forEach((row) => {
-    parsed[row.categoria] = safeArray(row.items);
-  });
-  return mergeCatalogos(parsed);
-}
-
-function catalogosToDb(catalogos, proyectoId = null) {
-  return Object.entries(catalogos).map(([categoria, items]) => ({
-    categoria,
-    items: safeArray(items),
-    ...(proyectoId ? { proyecto_id: proyectoId } : {}),
-  }));
-}
-
-function conclusionesFromDb(rows) {
-  return Object.fromEntries(safeArray(rows).map((row) => [row.fecha, safeArray(row.conclusiones)]));
-}
-
-function fmt(value) {
-  return new Intl.NumberFormat("es-CO").format(Math.round(toNumber(value)));
-}
-
-function fmtMoney(value) {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    maximumFractionDigits: 0,
-  }).format(toNumber(value));
-}
-
-function fmtPct(value) {
-  return `${toNumber(value).toFixed(1)}%`;
-}
-
-function getOnda(row) {
-  return (
-    toNumber(row.alcance) +
-    toNumber(row.meGusta) +
-    toNumber(row.comentarios) +
-    toNumber(row.compartidos) +
-    toNumber(row.retweets) +
-    toNumber(row.historias)
-  );
-}
-
-function groupBy(rows, key, valueFn = () => 1) {
-  const map = new Map();
-
-  rows.forEach((row) => {
-    const name = row[key] || "Sin dato";
-    map.set(name, (map.get(name) || 0) + valueFn(row));
-  });
-
-  return Array.from(map, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-}
-
-function escapeCsvCell(value) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
-}
-
-function buildCsv(rows) {
-  const headers = [
-    "fecha",
-    "responsable",
-    "accion",
-    "cliente",
-    "red",
-    "perfilGrupo",
-    "linkPerfil",
-    "linkPublicacion",
-    "hashtag1",
-    "hashtag2",
-    "mencion",
-    "campana",
-    "estadoEnGrupos",
-    "perfilDifusion",
-    "alcance",
-    "meGusta",
-    "comentarios",
-    "compartidos",
-    "retweets",
-    "historias",
-    "seguidores",
-    "ondaExpansiva",
-    "notas",
-  ];
-
-  const lines = rows.map((row) =>
-    headers
-      .map((header) => {
-        if (header === "ondaExpansiva") return escapeCsvCell(getOnda(row));
-        if (header === "campana") return escapeCsvCell(row.tema);
-        if (header === "estadoEnGrupos") return escapeCsvCell(row.estado);
-        return escapeCsvCell(row[header]);
-      })
-      .join(",")
-  );
-
-  return [headers.join(","), ...lines].join("\n");
-}
-
-function downloadCsv(rows) {
-  try {
-    const blob = new Blob([buildCsv(rows)], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = "acciones_onda_expansiva.csv";
-    link.style.display = "none";
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    URL.revokeObjectURL(url);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function IconBase({ children, className = "h-5 w-5" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      {children}
-    </svg>
-  );
-}
-
-function IconPlus({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </IconBase>
-  );
-}
-
-function IconUsers({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </IconBase>
-  );
-}
-
-function IconRadio({ className }) {
-  return (
-    <IconBase className={className}>
-      <circle cx="12" cy="12" r="2" />
-      <path d="M16.24 7.76a6 6 0 0 1 0 8.48" />
-      <path d="M7.76 16.24a6 6 0 0 1 0-8.48" />
-      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-      <path d="M4.93 19.07a10 10 0 0 1 0-14.14" />
-    </IconBase>
-  );
-}
-
-function IconMegaphone({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M3 11v2" />
-      <path d="M6 10v4" />
-      <path d="M11 8l8-4v16l-8-4H6a3 3 0 0 1-3-3v-2a3 3 0 0 1 3-3h5z" />
-      <path d="M11 16l1.5 4" />
-    </IconBase>
-  );
-}
-
-function IconNetwork({ className }) {
-  return (
-    <IconBase className={className}>
-      <circle cx="12" cy="5" r="2" />
-      <circle cx="5" cy="19" r="2" />
-      <circle cx="19" cy="19" r="2" />
-      <path d="M12 7v4" />
-      <path d="M12 11L6.5 17" />
-      <path d="M12 11l5.5 6" />
-    </IconBase>
-  );
-}
-
-function IconDownload({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M12 3v12" />
-      <path d="M7 10l5 5 5-5" />
-      <path d="M5 21h14" />
-    </IconBase>
-  );
-}
-
-function IconSearch({ className }) {
-  return (
-    <IconBase className={className}>
-      <circle cx="11" cy="11" r="7" />
-      <path d="M21 21l-4.3-4.3" />
-    </IconBase>
-  );
-}
-
-function IconCalendar({ className }) {
-  return (
-    <IconBase className={className}>
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <path d="M16 2v4" />
-      <path d="M8 2v4" />
-      <path d="M3 10h18" />
-    </IconBase>
-  );
-}
-
-function IconTrash({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M19 6l-1 14H6L5 6" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-    </IconBase>
-  );
-}
-
-function IconBarChart({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M3 3v18h18" />
-      <path d="M8 17V9" />
-      <path d="M13 17V5" />
-      <path d="M18 17v-7" />
-    </IconBase>
-  );
-}
-
-function IconClipboard({ className }) {
-  return (
-    <IconBase className={className}>
-      <rect x="5" y="4" width="14" height="17" rx="2" />
-      <path d="M9 4.5h6" />
-      <path d="M8 10h8" />
-      <path d="M8 14h8" />
-      <path d="M8 18h5" />
-    </IconBase>
-  );
-}
-
-function IconActivity({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M22 12h-4l-3 7-4-14-3 7H2" />
-    </IconBase>
-  );
-}
-
-function IconZap({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
-    </IconBase>
-  );
-}
-
-function IconShare({ className }) {
-  return (
-    <IconBase className={className}>
-      <circle cx="18" cy="5" r="3" />
-      <circle cx="6" cy="12" r="3" />
-      <circle cx="18" cy="19" r="3" />
-      <path d="M8.59 13.51l6.83 3.98" />
-      <path d="M15.41 6.51L8.59 10.49" />
-    </IconBase>
-  );
-}
-
-function IconComment({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-    </IconBase>
-  );
-}
-
-function IconUserPlus({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M19 8v6" />
-      <path d="M22 11h-6" />
-    </IconBase>
-  );
-}
-
-function IconMessage({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-    </IconBase>
-  );
-}
-
-function IconPhone({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72l.38 2.57a2 2 0 0 1-.57 1.72l-1.27 1.27a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 1.72-.57l2.57.38A2 2 0 0 1 22 16.92z" />
-    </IconBase>
-  );
-}
-
-function IconLink({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 1 0-7.07-7.07L11 4" />
-      <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 1 0 7.07 7.07L13 20" />
-    </IconBase>
-  );
-}
-
-function IconFileText({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6" />
-      <path d="M16 13H8" />
-      <path d="M16 17H8" />
-      <path d="M10 9H8" />
-    </IconBase>
-  );
-}
-
-function IconEye({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
-      <circle cx="12" cy="12" r="3" />
-    </IconBase>
-  );
-}
-
-function IconMousePointer({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M3 3l7 17 2-7 7-2L3 3z" />
-    </IconBase>
-  );
-}
-
-function IconSettings({ className }) {
-  return (
-    <IconBase className={className}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6V20a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1H4a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.13 4.3l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6V4a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.31.33.59.6 1H20a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-.51 1z" />
-    </IconBase>
-  );
-}
-
-function IconX({ className }) {
-  return (
-    <IconBase className={className}>
-      <path d="M18 6L6 18" />
-      <path d="M6 6l12 12" />
-    </IconBase>
-  );
-}
-
-function IconForNetwork({ red }) {
-  const className = "inline-flex h-4 w-4 shrink-0 items-center justify-center font-black";
-
-  if (red === "Facebook") return <span className={className}>f</span>;
-  if (red === "Instagram") return <span className={className}>◎</span>;
-  if (red === "TikTok") return <span className={className}>♪</span>;
-  if (red === "X" || red === "Twitter/X") return <span className={className}>𝕏</span>;
-
-  return <IconRadio className="h-4 w-4 shrink-0" />;
-}
-
-function EditModal({ open, row, onClose, onSave, catalogos }) {
-  const [editData, setEditData] = useState(row || {});
-
-  useEffect(() => {
-    if (open && row) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setEditData(row);
-    }
-  }, [row, open]);
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 px-4 py-6 sm:py-0">
-      <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl sm:p-6">
-        <h2 className="mb-4 text-lg font-black sm:text-xl">Editar registro</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="text-sm font-bold">
-            Fecha
-            <input type="date" className="input" value={editData.fecha || ""} onChange={(e) => setEditData((d) => ({ ...d, fecha: e.target.value }))} />
-          </label>
-          <label className="text-sm font-bold">
-            Responsable
-            <select className="input" value={editData.responsable || ""} onChange={(e) => setEditData((d) => ({ ...d, responsable: e.target.value }))}>
-              {catalogos.responsables.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-bold">
-            Acción
-            <select className="input" value={editData.accion || ""} onChange={(e) => setEditData((d) => ({ ...d, accion: e.target.value }))}>
-              {catalogos.acciones.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-bold">
-            Red
-            <select className="input" value={editData.red || ""} onChange={(e) => setEditData((d) => ({ ...d, red: e.target.value }))}>
-              {catalogos.redes.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-bold">
-            Medio / Perfil / Grupo
-            <input className="input" value={editData.perfilGrupo || ""} onChange={(e) => setEditData((d) => ({ ...d, perfilGrupo: e.target.value }))} />
-          </label>
-          <label className="text-sm font-bold">
-            Campaña
-            <select className="input" value={editData.tema || ""} onChange={(e) => setEditData((d) => ({ ...d, tema: e.target.value }))}>
-              {catalogos.campanas.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-bold">
-            Alcance
-            <input type="number" className="input" value={editData.alcance ?? 0} onChange={(e) => setEditData((d) => ({ ...d, alcance: e.target.value }))} />
-          </label>
-          <label className="text-sm font-bold">
-            Seguidores
-            <input type="number" className="input" value={editData.seguidores ?? 0} onChange={(e) => setEditData((d) => ({ ...d, seguidores: e.target.value }))} />
-          </label>
-        </div>
-        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" className="btn-tab" onClick={onClose}>Cancelar</button>
-          <button type="button" className="btn-primary" onClick={() => onSave(editData)}>Guardar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function KpiCard({ title, value, subtitle, icon, tone = "dark" }) {
-  const tones = {
-    dark: "from-slate-950 to-slate-800 text-white",
-    blue: "from-blue-700 to-blue-500 text-white",
-    green: "from-emerald-700 to-emerald-500 text-white",
-    orange: "from-orange-600 to-amber-500 text-white",
-  };
-
-  return (
-    <div className={`min-w-0 max-w-full rounded-[1.35rem] bg-gradient-to-br ${tones[tone] || tones.dark} p-4 shadow-lg shadow-slate-200 sm:rounded-[1.6rem] sm:p-5`}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide opacity-80 sm:text-sm sm:normal-case sm:tracking-normal">{title}</p>
-          <p className="mt-2 break-words text-2xl font-black tracking-tight sm:text-3xl md:text-4xl">{value}</p>
-          <p className="mt-1 text-xs opacity-75">{subtitle}</p>
-        </div>
-        <div className="shrink-0 rounded-2xl bg-white/15 p-3">{icon}</div>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ title, value, subtitle, icon, color, editable, onValueChange }) {
-  const colors = {
-    yellow: "bg-[#ffcc13] text-[#7a4100]",
-    purple: "bg-[#b979f2] text-white",
-    brown: "bg-[#812d14] text-white",
-    red: "bg-[#e32227] text-white",
-  };
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value);
-
-  useEffect(() => {
-    setEditValue(value);
-  }, [value]);
-
-  const handleEdit = () => {
-    if (editable) setIsEditing(true);
-  };
-  const handleBlur = () => {
-    setIsEditing(false);
-    if (onValueChange && editValue !== value) onValueChange(editValue);
-  };
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === "Escape") {
-      setIsEditing(false);
-      if (onValueChange && editValue !== value) onValueChange(editValue);
-    }
-  };
-
-  return (
-    <div className={`relative min-h-[170px] min-w-0 max-w-full overflow-hidden rounded-[1.35rem] ${colors[color] || colors.red} p-5 shadow-lg shadow-slate-200 sm:rounded-[1.6rem] sm:p-6`}>
-      <div className="absolute right-4 top-4 rounded-xl bg-white/15 p-3 sm:right-5 sm:top-5">{icon}</div>
-      <p className="max-w-[78%] text-[0.68rem] font-black uppercase tracking-[0.2em] opacity-80 sm:text-xs sm:tracking-[0.24em]">{title}</p>
-      <div className="mt-10 flex justify-center">
-        {editable && isEditing ? (
-          <input
-            type="number"
-            className="text-center text-3xl font-black tracking-tight sm:text-4xl md:text-5xl rounded bg-white/80 text-black px-2 py-1 outline-none"
-            value={editValue}
-            autoFocus
-            onChange={e => setEditValue(e.target.value)}
-            onBlur={handleBlur}
-            onKeyDown={handleKeyDown}
-            style={{ width: "90px" }}
-          />
-        ) : (
-          <p
-            className="break-words text-center text-3xl font-black tracking-tight sm:text-4xl md:text-5xl cursor-pointer select-none"
-            onClick={handleEdit}
-            title={editable ? "Haz clic para editar" : undefined}
-          >
-            {value}
-          </p>
-        )}
-      </div>
-      <div className="my-3 border-t border-dashed border-current opacity-25" />
-      <p className="text-sm font-semibold opacity-70">{subtitle}</p>
-    </div>
-  );
-}
+import { KpiCard, MetricCard } from "./ui/Cards";
+import { EditModal } from "./ui/EditModal";
+import {
+  IconPlus, IconUsers, IconRadio, IconMegaphone, IconNetwork, IconDownload, IconSearch,
+  IconCalendar, IconTrash, IconBarChart, IconClipboard, IconActivity, IconZap, IconShare,
+  IconComment, IconUserPlus, IconMessage, IconPhone, IconLink, IconFileText, IconEye,
+  IconMousePointer, IconSettings, IconX, IconForNetwork
+} from "./ui/Icons";
+import {
+  CATALOGOS_BASE, CONTACTO_DIRECTO_BASE, uid, today, safeArray, mergeCatalogos,
+  createForm, createPautaForm, toNumber, getScreenshotExtension, rowFromDb, rowToDb,
+  pautaFromDb, pautaToDb, catalogosFromDb, catalogosToDb, conclusionesFromDb, fmt,
+  fmtMoney, fmtPct, getOnda, groupBy, downloadCsv,
+  SCREENSHOTS_BUCKET, MAX_SCREENSHOT_SIZE, CHART_COLORS
+} from "../utils/helpers";
 
 function MiniKpi({ title, value, icon }) {
   return (
@@ -1378,9 +612,8 @@ function ConsolidadoTable({ rows, removeRow, onEditRow }) {
               rows.map((row, index) => (
                 <tr
                   key={row.id}
-                  className={`${
-                    index % 2 === 0 ? "bg-white" : "bg-slate-50"
-                  } border-b border-slate-100 hover:bg-blue-50/60`}
+                  className={`${index % 2 === 0 ? "bg-white" : "bg-slate-50"
+                    } border-b border-slate-100 hover:bg-blue-50/60`}
                 >
                   <td className="px-3 py-3 font-bold">{row.fecha}</td>
                   <td className="px-3 py-3">{row.responsable}</td>
@@ -1626,7 +859,7 @@ export default function OndaExpansivaApp() {
       }
     }
   }, [isCM, vista]);
-  
+
   const [mostrarContactoDirecto, setMostrarContactoDirecto] = useState(true);
   const [mostrarContenidoPautado, setMostrarContenidoPautado] = useState(true);
   const [mostrarConclusiones, setMostrarConclusiones] = useState(true);
@@ -1791,31 +1024,35 @@ export default function OndaExpansivaApp() {
   }, [filteredRows]);
 
   const [editableMetrics, setEditableMetrics] = useState({
-  interaccionesCaptadas: 0,
-  compartidos: 0,
-  comentarios: 0,
-  accionesTropa: 0,
-});
+    interaccionesCaptadas: 0,
+    compartidos: 0,
+    comentarios: 0,
+    accionesTropa: 0,
+  });
+  const [prevResumenPeriodo, setPrevResumenPeriodo] = useState(resumenPeriodo);
+  const [prevFilteredRows, setPrevFilteredRows] = useState(filteredRows);
 
-useEffect(() => {
-  setEditableMetrics((m) => ({
-    ...m,
-    interaccionesCaptadas: resumenPeriodo?.interaccionesCaptadas || 0,
-    compartidos: resumenPeriodo?.compartidos || 0,
-    comentarios: resumenPeriodo?.comentarios || 0,
-    accionesTropa: filteredRows?.length || 0,
-  }));
-}, [resumenPeriodo, filteredRows]);
+  if (resumenPeriodo !== prevResumenPeriodo || filteredRows !== prevFilteredRows) {
+    setPrevResumenPeriodo(resumenPeriodo);
+    setPrevFilteredRows(filteredRows);
+    setEditableMetrics((m) => ({
+      ...m,
+      interaccionesCaptadas: resumenPeriodo?.interaccionesCaptadas || 0,
+      compartidos: resumenPeriodo?.compartidos || 0,
+      comentarios: resumenPeriodo?.comentarios || 0,
+      accionesTropa: filteredRows?.length || 0,
+    }));
+  }
 
-const kpis = useMemo(
-  () => ({
-    totalOnda: resumenPeriodo.reproduccionesVideo,
-    contenidos: filteredRows.filter((row) => row.accion === "Creación de contenido").length,
-    difundidos: filteredRows.filter((row) => row.accion !== "Creación de contenido").length,
-    redesActivas: new Set(filteredRows.map((row) => row.red)).size,
-  }),
-  [filteredRows, resumenPeriodo.reproduccionesVideo]
-);
+  const kpis = useMemo(
+    () => ({
+      totalOnda: resumenPeriodo.reproduccionesVideo,
+      contenidos: filteredRows.filter((row) => row.accion === "Creación de contenido").length,
+      difundidos: filteredRows.filter((row) => row.accion !== "Creación de contenido").length,
+      redesActivas: new Set(filteredRows.map((row) => row.red)).size,
+    }),
+    [filteredRows, resumenPeriodo.reproduccionesVideo]
+  );
 
 
   const accionesPorRed = useMemo(() => groupBy(filteredRows, "red"), [filteredRows]);
@@ -2073,17 +1310,17 @@ const kpis = useMemo(
         img.onload = () => {
           const canvas = document.createElement("canvas");
           let { width, height } = img;
-          
+
           if (width > maxWidth) {
             height = (height * maxWidth) / width;
             width = maxWidth;
           }
-          
+
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0, width, height);
-          
+
           canvas.toBlob(
             (blob) => {
               if (!blob) {
@@ -2120,7 +1357,7 @@ const kpis = useMemo(
     let screenshotUrl = "";
     let screenshotDriveId = "";
     let screenshotPath = "";
-    
+
     // Si hay screenshot (File), subir a Supabase Storage
     if (payload.screenshot instanceof File) {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -2144,7 +1381,7 @@ const kpis = useMemo(
         setSyncStatus("Comprimiendo y subiendo imagen...");
 
         let fileToUpload = payload.screenshot;
-        
+
         // Comprimir imagen si es muy grande
         if (payload.screenshot.size > 1024 * 1024) {
           try {
@@ -2160,7 +1397,7 @@ const kpis = useMemo(
         const fileExt = getScreenshotExtension(fileToUpload);
         const fileName = `${timestamp}-${randomStr}.${fileExt}`;
         const filePath = `${rowId}/${fileName}`;
-        
+
         // Subir archivo a Supabase Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from(SCREENSHOTS_BUCKET)
@@ -2285,9 +1522,9 @@ const kpis = useMemo(
       return;
     }
 
-   const cleanPautaForm = createPautaForm(catalogos);
+    const cleanPautaForm = createPautaForm(catalogos);
 
-       setPautaRows((prev) => [pautaFromDb(data), ...prev]);
+    setPautaRows((prev) => [pautaFromDb(data), ...prev]);
     setPautaForm(cleanPautaForm);
 
     try {
