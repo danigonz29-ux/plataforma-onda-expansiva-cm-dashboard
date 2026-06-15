@@ -1,5 +1,30 @@
 # React + Vite
 
+## Visualizador publico
+
+La app incluye una vista de solo lectura para compartir el dashboard sin acceso a registro, consolidado, configuracion, edicion de metricas ni exportacion.
+
+Configura estas variables de entorno:
+
+```env
+VITE_VISTA_TOKEN=un-token-largo-y-dificil
+VITE_VISTA_PROYECTO_ID=id-del-proyecto-opcional
+```
+
+Luego comparte:
+
+```text
+/visualizador/un-token-largo-y-dificil
+```
+
+Tambien sigue funcionando la ruta compatible:
+
+```text
+/vista/un-token-largo-y-dificil
+```
+
+Si `VITE_VISTA_PROYECTO_ID` queda vacio, el visualizador intenta leer todos los datos visibles para la llave anonima de Supabase. Para actualizacion automatica, activa Realtime en Supabase para las tablas `acciones`, `pauta`, `catalogos` y `conclusiones`.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

@@ -33,6 +33,8 @@ import {
   SCREENSHOTS_BUCKET, MAX_SCREENSHOT_SIZE, CHART_COLORS
 } from "../utils/helpers";
 
+const VISTA_PROYECTO_ID = import.meta.env.VITE_VISTA_PROYECTO_ID ?? "";
+
 function MiniKpi({ title, value, icon }) {
   return (
     <div className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -802,7 +804,8 @@ function CatalogManager({ title, description, items, category, onRename, onAdd, 
 }
 
 export default function OndaExpansivaApp() {
-  const { isCM, user, logout } = useAuth();
+  const { isCM, isVisualizador, user, logout } = useAuth();
+  const isReadOnly = !isCM;
   const [catalogos, setCatalogos] = useState(() => mergeCatalogos(CATALOGOS_BASE));
   const [proyectos, setProyectos] = useState([]);
   const [proyectoActivo, setProyectoActivo] = useState(null);
@@ -874,9 +877,11 @@ export default function OndaExpansivaApp() {
   const [editRow, setEditRow] = useState(null);
   const csvTimeoutRef = useRef(null);
 
+  const proyectoFiltro = isCM ? proyectoActivo : VISTA_PROYECTO_ID;
+
   const withProyectoActivo = useCallback((query) => {
-    return isCM && proyectoActivo ? query.eq("proyecto_id", proyectoActivo) : query;
-  }, [isCM, proyectoActivo]);
+    return proyectoFiltro ? query.eq("proyecto_id", proyectoFiltro) : query;
+  }, [proyectoFiltro]);
 
   useEffect(() => {
     let mounted = true;
@@ -932,9 +937,10 @@ export default function OndaExpansivaApp() {
 
   useEffect(() => {
     let mounted = true;
+    let refreshTimeout = null;
 
     async function loadDashboardData() {
-      if (isCM && !proyectoActivo) {
+      if (isCM && !proyectoFiltro) {
         setRows([]);
         setPautaRows([]);
         setConclusionesPorFecha({});
@@ -975,10 +981,34 @@ export default function OndaExpansivaApp() {
 
     loadDashboardData();
 
+    const scheduleRefresh = () => {
+      if (refreshTimeout) window.clearTimeout(refreshTimeout);
+      refreshTimeout = window.setTimeout(() => {
+        if (mounted) void loadDashboardData();
+      }, 250);
+    };
+
+    const realtimeFilter = proyectoFiltro ? `proyecto_id=eq.${proyectoFiltro}` : "";
+    const changeOptions = (table) => ({
+      event: "*",
+      schema: "public",
+      table,
+      ...(realtimeFilter ? { filter: realtimeFilter } : {}),
+    });
+    const channel = supabase
+      .channel(`dashboard-live-${proyectoFiltro || "global"}`)
+      .on("postgres_changes", changeOptions("acciones"), scheduleRefresh)
+      .on("postgres_changes", changeOptions("pauta"), scheduleRefresh)
+      .on("postgres_changes", changeOptions("catalogos"), scheduleRefresh)
+      .on("postgres_changes", changeOptions("conclusiones"), scheduleRefresh)
+      .subscribe();
+
     return () => {
       mounted = false;
+      if (refreshTimeout) window.clearTimeout(refreshTimeout);
+      supabase.removeChannel(channel);
     };
-  }, [isCM, proyectoActivo, withProyectoActivo]);
+  }, [isCM, proyectoFiltro, withProyectoActivo]);
 
   useEffect(() => {
     return () => {
@@ -1591,7 +1621,11 @@ export default function OndaExpansivaApp() {
                 <IconActivity className="h-3.5 w-3.5" /> Plataforma de gestión diaria
               </div>
               <h1 className="mt-3 break-words text-3xl font-black tracking-tight text-slate-950 md:text-5xl">Bunker JDO</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-500 md:text-base">Registro diario de acciones, difusión por red y consolidado ejecutivo para medir alcance e impacto por Community Manager.</p>
+              <p className="mt-2 max-w-2xl text-sm text-slate-500 md:text-base">
+                {isVisualizador
+                  ? "Dashboard público de seguimiento en tiempo real."
+                  : "Registro diario de acciones, difusión por red y consolidado ejecutivo para medir alcance e impacto por Community Manager."}
+              </p>
               {isCM && (
                 <div className="mt-4 max-w-sm">
                   <label className="mb-1 block text-xs font-black uppercase tracking-[0.15em] text-slate-500" htmlFor="proyecto-activo">
@@ -1618,7 +1652,7 @@ export default function OndaExpansivaApp() {
               )}
             </div>
             <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end lg:max-w-xl xl:max-w-none">
-              <button type="button" onClick={() => handleVistaChange("dashboard")} className={`btn-tab ${vista === "dashboard" ? "btn-tab-active" : ""}`}><IconBarChart className="h-4 w-4" /> Dashboard</button>
+              {isCM && <button type="button" onClick={() => handleVistaChange("dashboard")} className={`btn-tab ${vista === "dashboard" ? "btn-tab-active" : ""}`}><IconBarChart className="h-4 w-4" /> Dashboard</button>}
               {isCM && (
                 <>
                   <button type="button" onClick={() => handleVistaChange("registro")} className={`btn-tab ${vista === "registro" ? "btn-tab-active" : ""}`}><IconPlus className="h-4 w-4" /> Registrar</button>
@@ -1645,23 +1679,25 @@ export default function OndaExpansivaApp() {
 
         {vista === "dashboard" && (
           <div className="dashboard-shell grid gap-5 sm:gap-6">
-            <section className="w-full min-w-0 max-w-full rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
-              <div className="mb-4">
-                <h2 className="text-base font-black uppercase tracking-[0.15em] text-slate-900 sm:text-lg">Control de secciones</h2>
-                <p className="mt-1 text-sm text-slate-500">Activa o desactiva las secciones del dashboard según la necesidad del reporte.</p>
-              </div>
-              <div className="grid min-w-0 gap-3 sm:flex sm:flex-wrap">
-                <ToggleChip active={mostrarContactoDirecto} onClick={() => setMostrarContactoDirecto((prev) => !prev)} label="Contacto Directo" />
-                <ToggleChip active={mostrarContenidoPautado} onClick={() => setMostrarContenidoPautado((prev) => !prev)} label="Contenido Pautado" />
-                <ToggleChip active={mostrarConclusiones} onClick={() => setMostrarConclusiones((prev) => !prev)} label="Conclusiones Generales" />
-              </div>
-            </section>
+            {isCM && (
+              <section className="w-full min-w-0 max-w-full rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[1.8rem] sm:p-5">
+                <div className="mb-4">
+                  <h2 className="text-base font-black uppercase tracking-[0.15em] text-slate-900 sm:text-lg">Control de secciones</h2>
+                  <p className="mt-1 text-sm text-slate-500">Activa o desactiva las secciones del dashboard según la necesidad del reporte.</p>
+                </div>
+                <div className="grid min-w-0 gap-3 sm:flex sm:flex-wrap">
+                  <ToggleChip active={mostrarContactoDirecto} onClick={() => setMostrarContactoDirecto((prev) => !prev)} label="Contacto Directo" />
+                  <ToggleChip active={mostrarContenidoPautado} onClick={() => setMostrarContenidoPautado((prev) => !prev)} label="Contenido Pautado" />
+                  <ToggleChip active={mostrarConclusiones} onClick={() => setMostrarConclusiones((prev) => !prev)} label="Conclusiones Generales" />
+                </div>
+              </section>
+            )}
 
             <FilterPanel query={query} setQuery={setQuery} responsable={responsable} setResponsable={setResponsable} red={red} setRed={setRed} accion={accion} setAccion={setAccion} catalogos={catalogos} placeholder="Buscar por medio, campaña, hashtag, mención, responsable o red..." dateStart={dateStart} setDateStart={setDateStart} dateEnd={dateEnd} setDateEnd={setDateEnd} clearDateFilters={clearDateFilters} />
             <OndaHero value={resumenPeriodo.ondaExpansiva} />
 
             <div className="flex items-center justify-between">
-              {overriddenMetrics.size > 0 && (
+              {isCM && overriddenMetrics.size > 0 && (
                 <button
                   type="button"
                   onClick={handleResetMetrics}
@@ -1678,7 +1714,7 @@ export default function OndaExpansivaApp() {
                 rawValue={editableMetrics.interaccionesCaptadas}
                 subtitle="Me gusta y reacciones"
                 icon={<IconZap className="h-5 w-5" />} color="yellow"
-                editable
+                editable={isCM}
                 onValueChange={v => {
                   setEditableMetrics(m => ({ ...m, interaccionesCaptadas: Number(v) }));
                   setOverriddenMetrics(s => new Set([...s, "interaccionesCaptadas"]));
@@ -1690,7 +1726,7 @@ export default function OndaExpansivaApp() {
                 rawValue={editableMetrics.compartidos}
                 subtitle="Compartidos, reposts e historias"
                 icon={<IconShare className="h-5 w-5" />} color="purple"
-                editable
+                editable={isCM}
                 onValueChange={v => {
                   setEditableMetrics(m => ({ ...m, compartidos: Number(v) }));
                   setOverriddenMetrics(s => new Set([...s, "compartidos"]));
@@ -1702,7 +1738,7 @@ export default function OndaExpansivaApp() {
                 rawValue={editableMetrics.comentarios}
                 subtitle="Total comentarios"
                 icon={<IconComment className="h-5 w-5" />} color="brown"
-                editable
+                editable={isCM}
                 onValueChange={v => {
                   setEditableMetrics(m => ({ ...m, comentarios: Number(v) }));
                   setOverriddenMetrics(s => new Set([...s, "comentarios"]));
@@ -1714,7 +1750,7 @@ export default function OndaExpansivaApp() {
                 rawValue={editableMetrics.accionesTropa}
                 subtitle="Total de acciones registradas"
                 icon={<IconUserPlus className="h-5 w-5" />} color="red"
-                editable
+                editable={isCM}
                 onValueChange={v => {
                   setEditableMetrics(m => ({ ...m, accionesTropa: Number(v) }));
                   setOverriddenMetrics(s => new Set([...s, "accionesTropa"]));
@@ -1726,7 +1762,7 @@ export default function OndaExpansivaApp() {
                 rawValue={editableMetrics.seguidoresCaptados}
                 subtitle="Nuevos seguidores"
                 icon={<IconUsers className="h-5 w-5" />} color="blue"
-                editable
+                editable={isCM}
                 onValueChange={v => {
                   setEditableMetrics(m => ({ ...m, seguidoresCaptados: Number(v) }));
                   setOverriddenMetrics(s => new Set([...s, "seguidoresCaptados"]));
@@ -1806,7 +1842,7 @@ export default function OndaExpansivaApp() {
             </section>
 
             {mostrarContactoDirecto && <ContactoDirectoSection data={CONTACTO_DIRECTO_BASE} />}
-            {mostrarContenidoPautado && <ContenidoPautadoSection rows={filteredPautaRows} form={pautaForm} catalogos={catalogos} onChange={handlePautaChange} onAdd={handleAddPauta} onDelete={deletePautaRow} resumen={pautaResumen} readOnly={!isCM} />}
+            {mostrarContenidoPautado && <ContenidoPautadoSection rows={filteredPautaRows} form={pautaForm} catalogos={catalogos} onChange={handlePautaChange} onAdd={handleAddPauta} onDelete={deletePautaRow} resumen={pautaResumen} readOnly={isReadOnly} />}
             {mostrarConclusiones && (
               <ConclusionesSection
                 rows={conclusionesPeriodo}
@@ -1822,7 +1858,7 @@ export default function OndaExpansivaApp() {
                 onDateChange={handleConclusionDateChange}
                 onDraftChange={setBorradorConclusiones}
                 onSave={handleSaveConclusiones}
-                readOnly={!isCM}
+                readOnly={isReadOnly}
               />
             )}
           </div>

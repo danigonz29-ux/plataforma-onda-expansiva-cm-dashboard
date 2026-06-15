@@ -12,6 +12,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/vista/:token" element={<VistaPage />} />
+          <Route path="/visualizador/:token" element={<VistaPage />} />
           <Route
             path="/dashboard"
             element={
