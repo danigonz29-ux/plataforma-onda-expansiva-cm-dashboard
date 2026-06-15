@@ -36,7 +36,9 @@ import {
 const VISTA_PROYECTO_ID = import.meta.env.VITE_VISTA_PROYECTO_ID ?? "";
 const REPORTE_MANUAL = {
   interaccionesCaptadas: 742,
-  accionesTropa: 1352711,
+  compartidos: 77,
+  comentarios: 83,
+  accionesTropa: 1352,
   reproduccionesVideo: 6666,
   contenidosRealizados: 40,
   contenidosDifundidos: 58,
@@ -1087,8 +1089,8 @@ export default function OndaExpansivaApp() {
     setEditableMetrics(m => ({
       ...m,
       ...(!overriddenMetrics.has("interaccionesCaptadas") && { interaccionesCaptadas: REPORTE_MANUAL.interaccionesCaptadas }),
-      ...(!overriddenMetrics.has("compartidos") && { compartidos: resumenPeriodo.compartidos || 0 }),
-      ...(!overriddenMetrics.has("comentarios") && { comentarios: resumenPeriodo.comentarios || 0 }),
+      ...(!overriddenMetrics.has("compartidos") && { compartidos: REPORTE_MANUAL.compartidos }),
+      ...(!overriddenMetrics.has("comentarios") && { comentarios: REPORTE_MANUAL.comentarios }),
       ...(!overriddenMetrics.has("accionesTropa") && { accionesTropa: REPORTE_MANUAL.accionesTropa }),
       ...(!overriddenMetrics.has("seguidoresCaptados") && { seguidoresCaptados: resumenPeriodo.seguidoresCaptados || 0 }),
     }));
@@ -1100,8 +1102,8 @@ export default function OndaExpansivaApp() {
     setOverriddenMetrics(new Set());
     setEditableMetrics({
       interaccionesCaptadas: REPORTE_MANUAL.interaccionesCaptadas,
-      compartidos: resumenPeriodo.compartidos || 0,
-      comentarios: resumenPeriodo.comentarios || 0,
+      compartidos: REPORTE_MANUAL.compartidos,
+      comentarios: REPORTE_MANUAL.comentarios,
       accionesTropa: REPORTE_MANUAL.accionesTropa,
       seguidoresCaptados: resumenPeriodo.seguidoresCaptados || 0,
     });
