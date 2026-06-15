@@ -21,20 +21,21 @@ export function KpiCard({ title, value, subtitle, icon, tone = "dark" }) {
   );
 }
 
-export function MetricCard({ title, value, subtitle, icon, color, editable, onValueChange }) {
+export function MetricCard({ title, value, rawValue, subtitle, icon, color, editable, onValueChange }) {
   const colors = {
     yellow: "bg-[#ffcc13] text-[#7a4100]",
     purple: "bg-[#b979f2] text-white",
     brown: "bg-[#812d14] text-white",
     red: "bg-[#e32227] text-white",
+    blue: "bg-[#2563eb] text-white",
   };
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value);
+  const [editValue, setEditValue] = useState(rawValue ?? value);
   const [prevValue, setPrevValue] = useState(value);
 
   if (value !== prevValue) {
     setPrevValue(value);
-    setEditValue(value);
+    setEditValue(rawValue ?? value);
   }
 
   const handleEdit = () => {
@@ -42,12 +43,15 @@ export function MetricCard({ title, value, subtitle, icon, color, editable, onVa
   };
   const handleBlur = () => {
     setIsEditing(false);
-    if (onValueChange && editValue !== value) onValueChange(editValue);
+    if (onValueChange) onValueChange(editValue);
   };
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === "Escape") {
+    if (e.key === "Enter") {
       setIsEditing(false);
-      if (onValueChange && editValue !== value) onValueChange(editValue);
+      if (onValueChange) onValueChange(editValue);
+    } else if (e.key === "Escape") {
+      setEditValue(rawValue ?? value);
+      setIsEditing(false);
     }
   };
 

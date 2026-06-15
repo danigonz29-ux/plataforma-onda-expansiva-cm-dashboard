@@ -1028,21 +1028,33 @@ export default function OndaExpansivaApp() {
     compartidos: 0,
     comentarios: 0,
     accionesTropa: 0,
+    seguidoresCaptados: 0,
   });
-  const [prevResumenPeriodo, setPrevResumenPeriodo] = useState(resumenPeriodo);
-  const [prevFilteredRows, setPrevFilteredRows] = useState(filteredRows);
+  const [overriddenMetrics, setOverriddenMetrics] = useState(new Set());
 
-  if (resumenPeriodo !== prevResumenPeriodo || filteredRows !== prevFilteredRows) {
-    setPrevResumenPeriodo(resumenPeriodo);
-    setPrevFilteredRows(filteredRows);
-    setEditableMetrics((m) => ({
+  useEffect(() => {
+    setEditableMetrics(m => ({
       ...m,
-      interaccionesCaptadas: resumenPeriodo?.interaccionesCaptadas || 0,
-      compartidos: resumenPeriodo?.compartidos || 0,
-      comentarios: resumenPeriodo?.comentarios || 0,
-      accionesTropa: filteredRows?.length || 0,
+      ...(!overriddenMetrics.has("interaccionesCaptadas") && { interaccionesCaptadas: resumenPeriodo.interaccionesCaptadas || 0 }),
+      ...(!overriddenMetrics.has("compartidos") && { compartidos: resumenPeriodo.compartidos || 0 }),
+      ...(!overriddenMetrics.has("comentarios") && { comentarios: resumenPeriodo.comentarios || 0 }),
+      ...(!overriddenMetrics.has("accionesTropa") && { accionesTropa: filteredRows.length || 0 }),
+      ...(!overriddenMetrics.has("seguidoresCaptados") && { seguidoresCaptados: resumenPeriodo.seguidoresCaptados || 0 }),
     }));
-  }
+  // overriddenMetrics excluido intencionalmente: el efecto solo re-sincroniza cuando cambian los datos, no cuando el usuario edita un campo
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumenPeriodo, filteredRows]);
+
+  const handleResetMetrics = () => {
+    setOverriddenMetrics(new Set());
+    setEditableMetrics({
+      interaccionesCaptadas: resumenPeriodo.interaccionesCaptadas || 0,
+      compartidos: resumenPeriodo.compartidos || 0,
+      comentarios: resumenPeriodo.comentarios || 0,
+      accionesTropa: filteredRows.length || 0,
+      seguidoresCaptados: resumenPeriodo.seguidoresCaptados || 0,
+    });
+  };
 
   const kpis = useMemo(
     () => ({
@@ -1648,43 +1660,82 @@ export default function OndaExpansivaApp() {
             <FilterPanel query={query} setQuery={setQuery} responsable={responsable} setResponsable={setResponsable} red={red} setRed={setRed} accion={accion} setAccion={setAccion} catalogos={catalogos} placeholder="Buscar por medio, campaña, hashtag, mención, responsable o red..." dateStart={dateStart} setDateStart={setDateStart} dateEnd={dateEnd} setDateEnd={setDateEnd} clearDateFilters={clearDateFilters} />
             <OndaHero value={resumenPeriodo.ondaExpansiva} />
 
-            <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="flex items-center justify-between">
+              {overriddenMetrics.size > 0 && (
+                <button
+                  type="button"
+                  onClick={handleResetMetrics}
+                  className="ml-auto text-xs font-semibold text-slate-500 underline underline-offset-2 hover:text-slate-800"
+                >
+                  Restablecer métricas
+                </button>
+              )}
+            </div>
+            <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <MetricCard
                 title="Interacciones captadas"
                 value={fmt(editableMetrics.interaccionesCaptadas)}
+                rawValue={editableMetrics.interaccionesCaptadas}
                 subtitle="Me gusta y reacciones"
                 icon={<IconZap className="h-5 w-5" />} color="yellow"
                 editable
-                onValueChange={v => setEditableMetrics(m => ({ ...m, interaccionesCaptadas: Number(v) }))}
+                onValueChange={v => {
+                  setEditableMetrics(m => ({ ...m, interaccionesCaptadas: Number(v) }));
+                  setOverriddenMetrics(s => new Set([...s, "interaccionesCaptadas"]));
+                }}
               />
               <MetricCard
                 title="Compartido"
                 value={fmt(editableMetrics.compartidos)}
+                rawValue={editableMetrics.compartidos}
                 subtitle="Compartidos, reposts e historias"
                 icon={<IconShare className="h-5 w-5" />} color="purple"
                 editable
-                onValueChange={v => setEditableMetrics(m => ({ ...m, compartidos: Number(v) }))}
+                onValueChange={v => {
+                  setEditableMetrics(m => ({ ...m, compartidos: Number(v) }));
+                  setOverriddenMetrics(s => new Set([...s, "compartidos"]));
+                }}
               />
               <MetricCard
                 title="Comentarios"
                 value={fmt(editableMetrics.comentarios)}
+                rawValue={editableMetrics.comentarios}
                 subtitle="Total comentarios"
                 icon={<IconComment className="h-5 w-5" />} color="brown"
                 editable
-                onValueChange={v => setEditableMetrics(m => ({ ...m, comentarios: Number(v) }))}
+                onValueChange={v => {
+                  setEditableMetrics(m => ({ ...m, comentarios: Number(v) }));
+                  setOverriddenMetrics(s => new Set([...s, "comentarios"]));
+                }}
               />
               <MetricCard
                 title="Acciones de Tropa Totales"
                 value={fmt(editableMetrics.accionesTropa)}
+                rawValue={editableMetrics.accionesTropa}
                 subtitle="Total de acciones registradas"
                 icon={<IconUserPlus className="h-5 w-5" />} color="red"
                 editable
-                onValueChange={v => setEditableMetrics(m => ({ ...m, accionesTropa: Number(v) }))}
+                onValueChange={v => {
+                  setEditableMetrics(m => ({ ...m, accionesTropa: Number(v) }));
+                  setOverriddenMetrics(s => new Set([...s, "accionesTropa"]));
+                }}
+              />
+              <MetricCard
+                title="Seguidores captados"
+                value={fmt(editableMetrics.seguidoresCaptados)}
+                rawValue={editableMetrics.seguidoresCaptados}
+                subtitle="Nuevos seguidores"
+                icon={<IconUsers className="h-5 w-5" />} color="blue"
+                editable
+                onValueChange={v => {
+                  setEditableMetrics(m => ({ ...m, seguidoresCaptados: Number(v) }));
+                  setOverriddenMetrics(s => new Set([...s, "seguidoresCaptados"]));
+                }}
               />
             </section>
 
             <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCard title="Reproducciones de Video registradas" value={fmt(kpis.reproduccionesVideo)} subtitle="Total de reproducciones de videos" icon={<IconNetwork className="h-6 w-6" />} />
+              <KpiCard title="Reproducciones de Video registradas" value={fmt(kpis.totalOnda)} subtitle="Total de reproducciones de videos" icon={<IconNetwork className="h-6 w-6" />} />
               <KpiCard title="Contenidos realizados" value={fmt(kpis.contenidos)} subtitle="Creación de contenido" icon={<IconMegaphone className="h-6 w-6" />} tone="blue" />
               <KpiCard title="Contenidos difundidos" value={fmt(kpis.difundidos)} subtitle="Siembra y amplificación" icon={<IconRadio className="h-6 w-6" />} tone="green" />
               <KpiCard title="Redes activas" value={fmt(kpis.redesActivas)} subtitle="Canales con actividad" icon={<IconUsers className="h-6 w-6" />} tone="orange" />
