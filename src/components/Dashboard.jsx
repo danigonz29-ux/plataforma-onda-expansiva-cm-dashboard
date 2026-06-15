@@ -34,6 +34,27 @@ import {
 } from "../utils/helpers";
 
 const VISTA_PROYECTO_ID = import.meta.env.VITE_VISTA_PROYECTO_ID ?? "";
+const REPORTE_MANUAL = {
+  interaccionesCaptadas: 742,
+  accionesTropa: 1352711,
+  reproduccionesVideo: 6666,
+  contenidosRealizados: 40,
+  contenidosDifundidos: 58,
+  redesActivas: 3,
+  contenidosRealizadosDetalle: "13 jun: 9 · 14 jun: 16 · 15 jun: 18",
+  reproduccionesVideoDetalle: "13 jun: 1.352 · 14 jun: 2.546 · 15 jun: 2.768",
+  reproduccionesVideoPorFecha: [
+    { fecha: "13 jun", onda: 1352 },
+    { fecha: "14 jun", onda: 2546 },
+    { fecha: "15 jun", onda: 2768 },
+  ],
+  accionesTropaPorFecha: [
+    { fecha: "12 jun", acciones: 136 },
+    { fecha: "13 jun", acciones: 517 },
+    { fecha: "14 jun", acciones: 1132 },
+    { fecha: "15 jun", acciones: 1365 },
+  ],
+};
 
 function MiniKpi({ title, value, icon }) {
   return (
@@ -1065,10 +1086,10 @@ export default function OndaExpansivaApp() {
   useEffect(() => {
     setEditableMetrics(m => ({
       ...m,
-      ...(!overriddenMetrics.has("interaccionesCaptadas") && { interaccionesCaptadas: resumenPeriodo.interaccionesCaptadas || 0 }),
+      ...(!overriddenMetrics.has("interaccionesCaptadas") && { interaccionesCaptadas: REPORTE_MANUAL.interaccionesCaptadas }),
       ...(!overriddenMetrics.has("compartidos") && { compartidos: resumenPeriodo.compartidos || 0 }),
       ...(!overriddenMetrics.has("comentarios") && { comentarios: resumenPeriodo.comentarios || 0 }),
-      ...(!overriddenMetrics.has("accionesTropa") && { accionesTropa: filteredRows.length || 0 }),
+      ...(!overriddenMetrics.has("accionesTropa") && { accionesTropa: REPORTE_MANUAL.accionesTropa }),
       ...(!overriddenMetrics.has("seguidoresCaptados") && { seguidoresCaptados: resumenPeriodo.seguidoresCaptados || 0 }),
     }));
   // overriddenMetrics excluido intencionalmente: el efecto solo re-sincroniza cuando cambian los datos, no cuando el usuario edita un campo
@@ -1078,32 +1099,30 @@ export default function OndaExpansivaApp() {
   const handleResetMetrics = () => {
     setOverriddenMetrics(new Set());
     setEditableMetrics({
-      interaccionesCaptadas: resumenPeriodo.interaccionesCaptadas || 0,
+      interaccionesCaptadas: REPORTE_MANUAL.interaccionesCaptadas,
       compartidos: resumenPeriodo.compartidos || 0,
       comentarios: resumenPeriodo.comentarios || 0,
-      accionesTropa: filteredRows.length || 0,
+      accionesTropa: REPORTE_MANUAL.accionesTropa,
       seguidoresCaptados: resumenPeriodo.seguidoresCaptados || 0,
     });
   };
 
   const kpis = useMemo(
     () => ({
-      totalOnda: resumenPeriodo.reproduccionesVideo,
-      contenidos: filteredRows.filter((row) => row.accion === "Creación de contenido").length,
-      difundidos: filteredRows.filter((row) => row.accion !== "Creación de contenido").length,
-      redesActivas: new Set(filteredRows.map((row) => row.red)).size,
+      totalOnda: REPORTE_MANUAL.reproduccionesVideo,
+      contenidos: REPORTE_MANUAL.contenidosRealizados,
+      difundidos: REPORTE_MANUAL.contenidosDifundidos,
+      redesActivas: REPORTE_MANUAL.redesActivas,
     }),
-    [filteredRows, resumenPeriodo.reproduccionesVideo]
+    []
   );
 
 
   const accionesPorRed = useMemo(() => groupBy(filteredRows, "red"), [filteredRows]);
   const ondaPorCm = useMemo(() => groupBy(filteredRows, "responsable", getOnda), [filteredRows]);
   const accionesPorTipo = useMemo(() => groupBy(filteredRows, "accion"), [filteredRows]);
-  const ondaPorFecha = useMemo(
-    () => groupBy(filteredRows, "fecha", getOnda).sort((a, b) => String(a.name).localeCompare(String(b.name))).map((item) => ({ fecha: item.name, onda: item.value })),
-    [filteredRows]
-  );
+  const ondaPorFecha = REPORTE_MANUAL.reproduccionesVideoPorFecha;
+  const accionesTropaPorFecha = REPORTE_MANUAL.accionesTropaPorFecha;
 
   const pautaResumen = useMemo(() => {
     const alcance = filteredPautaRows.reduce((sum, row) => sum + toNumber(row.alcance), 0);
@@ -1771,8 +1790,8 @@ export default function OndaExpansivaApp() {
             </section>
 
             <section className="grid w-full min-w-0 max-w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCard title="Reproducciones de Video registradas" value={fmt(kpis.totalOnda)} subtitle="Total de reproducciones de videos" icon={<IconNetwork className="h-6 w-6" />} />
-              <KpiCard title="Contenidos realizados" value={fmt(kpis.contenidos)} subtitle="Creación de contenido" icon={<IconMegaphone className="h-6 w-6" />} tone="blue" />
+              <KpiCard title="Reproducciones de Video registradas" value={fmt(kpis.totalOnda)} subtitle={REPORTE_MANUAL.reproduccionesVideoDetalle} icon={<IconNetwork className="h-6 w-6" />} />
+              <KpiCard title="Contenidos realizados" value={fmt(kpis.contenidos)} subtitle={REPORTE_MANUAL.contenidosRealizadosDetalle} icon={<IconMegaphone className="h-6 w-6" />} tone="blue" />
               <KpiCard title="Contenidos difundidos" value={fmt(kpis.difundidos)} subtitle="Siembra y amplificación" icon={<IconRadio className="h-6 w-6" />} tone="green" />
               <KpiCard title="Redes activas" value={fmt(kpis.redesActivas)} subtitle="Canales con actividad" icon={<IconUsers className="h-6 w-6" />} tone="orange" />
             </section>
@@ -1822,6 +1841,20 @@ export default function OndaExpansivaApp() {
                       <Tooltip formatter={(value) => fmt(value)} contentStyle={{ borderRadius: 16, border: "1px solid #e2e8f0" }} />
                       <Area type="monotone" dataKey="onda" stroke="#16a34a" strokeWidth={3} fill="url(#ondaGradient)" />
                     </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+
+              <ChartCard title="Acciones de tropa por fecha" subtitle="Evolución diaria registrada">
+                {accionesTropaPorFecha.length === 0 ? <EmptyState text="No hay acciones de tropa para mostrar." /> : (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={accionesTropaPorFecha} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="fecha" tick={{ fill: "#64748b", fontSize: 12 }} />
+                      <YAxis tick={{ fill: "#64748b", fontSize: 12 }} />
+                      <Tooltip formatter={(value) => fmt(value)} contentStyle={{ borderRadius: 16, border: "1px solid #e2e8f0" }} />
+                      <Bar dataKey="acciones" radius={[12, 12, 0, 0]} fill="#dc2626" />
+                    </BarChart>
                   </ResponsiveContainer>
                 )}
               </ChartCard>
