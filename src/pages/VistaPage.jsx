@@ -7,13 +7,14 @@ import Dashboard from "../components/Dashboard";
 export default function VistaPage() {
   const { token } = useParams();
   const { loginWithToken } = useAuth();
-  const valid = token === VISTA_TOKEN;
+  const accessToken = token || VISTA_TOKEN;
+  const valid = token ? token === VISTA_TOKEN : Boolean(VISTA_TOKEN);
 
   useEffect(() => {
     if (valid) {
-      loginWithToken(token);
+      loginWithToken(accessToken);
     }
-  }, [loginWithToken, token, valid]);
+  }, [accessToken, loginWithToken, valid]);
 
   if (!valid) {
     return (

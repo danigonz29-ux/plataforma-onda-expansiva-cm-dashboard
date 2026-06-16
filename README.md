@@ -14,12 +14,13 @@ VITE_VISTA_PROYECTO_ID=id-del-proyecto-opcional
 Luego comparte:
 
 ```text
-/visualizador/un-token-largo-y-dificil
+/visualizador
 ```
 
 Tambien sigue funcionando la ruta compatible:
 
 ```text
+/visualizador/un-token-largo-y-dificil
 /vista/un-token-largo-y-dificil
 ```
 
