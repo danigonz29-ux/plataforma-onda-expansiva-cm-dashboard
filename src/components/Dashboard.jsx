@@ -34,6 +34,7 @@ import {
 } from "../utils/helpers";
 
 const VISTA_PROYECTO_ID = import.meta.env.VITE_VISTA_PROYECTO_ID ?? "";
+const MANUAL_CHARTS_CATEGORY = "__dashboard_manual_charts";
 const REPORTE_MANUAL = {
   interaccionesCaptadas: 742,
   compartidos: 77,
@@ -57,6 +58,54 @@ const REPORTE_MANUAL = {
     { fecha: "15 jun", acciones: 1365 },
   ],
 };
+const DEFAULT_MANUAL_CHARTS = {
+  enabled: false,
+  videoPorCm: [
+    { name: "CM 1", value: "" },
+    { name: "CM 2", value: "" },
+  ],
+  accionesPorRed: [
+    { name: "Facebook", value: "" },
+    { name: "Instagram", value: "" },
+    { name: "TikTok", value: "" },
+  ],
+};
+
+function normalizeManualCharts(value) {
+  const parsed = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const normalizeRows = (rows, fallback) => {
+    const source = Array.isArray(rows) && rows.length ? rows : fallback;
+
+    return source.map((row, index) => ({
+      name: String(row?.name || fallback[index]?.name || `Dato ${index + 1}`),
+      value: row?.value === "" ? "" : toNumber(row?.value),
+    }));
+  };
+
+  return {
+    enabled: Boolean(parsed.enabled),
+    videoPorCm: normalizeRows(parsed.videoPorCm, DEFAULT_MANUAL_CHARTS.videoPorCm),
+    accionesPorRed: normalizeRows(parsed.accionesPorRed, DEFAULT_MANUAL_CHARTS.accionesPorRed),
+  };
+}
+
+function manualChartsFromDb(rows) {
+  const row = safeArray(rows).find((item) => item.categoria === MANUAL_CHARTS_CATEGORY);
+  const rawValue = safeArray(row?.items)[0];
+
+  if (!rawValue) return DEFAULT_MANUAL_CHARTS;
+
+  try {
+    return normalizeManualCharts(JSON.parse(rawValue));
+  } catch {
+    return DEFAULT_MANUAL_CHARTS;
+  }
+}
+
+function manualChartsToDb(value) {
+  const normalized = normalizeManualCharts({ ...value, enabled: true });
+  return [JSON.stringify(normalized)];
+}
 
 function MiniKpi({ title, value, icon }) {
   return (
@@ -163,6 +212,31 @@ function ChartCard({ title, subtitle, children }) {
         <p className="text-sm text-slate-500">{subtitle}</p>
       </div>
       {children}
+    </div>
+  );
+}
+
+function ManualChartEditor({ rows, onChange, onSave, status }) {
+  return (
+    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {rows.map((row, index) => (
+          <Field key={`${row.name}-${index}`} label={row.name}>
+            <input
+              type="number"
+              min="0"
+              value={row.value}
+              onChange={(event) => onChange(index, event.target.value)}
+              className="input bg-white"
+              placeholder="0"
+            />
+          </Field>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <button type="button" onClick={onSave} className="btn-primary">Guardar valores</button>
+        {status && <span className="text-xs font-black text-slate-500">{status}</span>}
+      </div>
     </div>
   );
 }
@@ -898,6 +972,8 @@ export default function OndaExpansivaApp() {
   const [csvStatus, setCsvStatus] = useState("");
   const [configMessage, setConfigMessage] = useState("");
   const [editRow, setEditRow] = useState(null);
+  const [manualCharts, setManualCharts] = useState(DEFAULT_MANUAL_CHARTS);
+  const [manualChartsStatus, setManualChartsStatus] = useState("");
   const csvTimeoutRef = useRef(null);
 
   const proyectoFiltro = isCM ? proyectoActivo : VISTA_PROYECTO_ID;
@@ -995,6 +1071,7 @@ export default function OndaExpansivaApp() {
 
       if (mounted) {
         setCatalogos(nextCatalogos);
+        setManualCharts(manualChartsFromDb(catalogosResult.data));
         setRows(safeArray(accionesResult.data).map(rowFromDb));
         setPautaRows(safeArray(pautaResult.data).map(pautaFromDb));
         setConclusionesPorFecha(conclusionesFromDb(conclusionesResult.data));
@@ -1120,8 +1197,16 @@ export default function OndaExpansivaApp() {
   );
 
 
-  const accionesPorRed = useMemo(() => groupBy(filteredRows, "red"), [filteredRows]);
-  const ondaPorCm = useMemo(() => groupBy(filteredRows, "responsable", getOnda), [filteredRows]);
+  const computedAccionesPorRed = useMemo(() => groupBy(filteredRows, "red"), [filteredRows]);
+  const computedOndaPorCm = useMemo(() => groupBy(filteredRows, "responsable", getOnda), [filteredRows]);
+  const accionesPorRed = useMemo(
+    () => (manualCharts.enabled ? manualCharts.accionesPorRed.map((row) => ({ ...row, value: toNumber(row.value) })) : computedAccionesPorRed),
+    [computedAccionesPorRed, manualCharts]
+  );
+  const ondaPorCm = useMemo(
+    () => (manualCharts.enabled ? manualCharts.videoPorCm.map((row) => ({ ...row, value: toNumber(row.value) })) : computedOndaPorCm),
+    [computedOndaPorCm, manualCharts]
+  );
   const accionesPorTipo = useMemo(() => groupBy(filteredRows, "accion"), [filteredRows]);
   const ondaPorFecha = REPORTE_MANUAL.reproduccionesVideoPorFecha;
   const accionesTropaPorFecha = REPORTE_MANUAL.accionesTropaPorFecha;
@@ -1163,6 +1248,42 @@ export default function OndaExpansivaApp() {
     }
 
     return true;
+  }
+
+  function updateManualChartValue(section, index, value) {
+    setManualCharts((prev) => ({
+      ...prev,
+      [section]: prev[section].map((row, rowIndex) => (rowIndex === index ? { ...row, value } : row)),
+    }));
+  }
+
+  async function saveManualCharts() {
+    if (isCM && !proyectoActivo) {
+      setManualChartsStatus("Selecciona un proyecto antes de guardar.");
+      return;
+    }
+
+    const nextManualCharts = normalizeManualCharts({ ...manualCharts, enabled: true });
+    const payload = {
+      categoria: MANUAL_CHARTS_CATEGORY,
+      items: manualChartsToDb(nextManualCharts),
+      ...(proyectoActivo ? { proyecto_id: proyectoActivo } : {}),
+    };
+
+    setManualCharts(nextManualCharts);
+    setManualChartsStatus("Guardando...");
+
+    const { error } = await supabase
+      .from("catalogos")
+      .upsert(payload, { onConflict: proyectoActivo ? "proyecto_id,categoria" : "categoria" });
+
+    if (error) {
+      setManualChartsStatus(`Error: ${error.message}`);
+      return;
+    }
+
+    setManualChartsStatus("Valores guardados.");
+    setSyncStatus("Gráficas manuales actualizadas.");
   }
 
   async function deleteRow(id) {
@@ -1800,6 +1921,14 @@ export default function OndaExpansivaApp() {
 
             <section className="grid w-full min-w-0 max-w-full gap-5 xl:grid-cols-2">
               <ChartCard title="Reproducciones de Video por Community Manager" subtitle="Total acumulado por responsable">
+                {isCM && (
+                  <ManualChartEditor
+                    rows={manualCharts.videoPorCm}
+                    onChange={(index, value) => updateManualChartValue("videoPorCm", index, value)}
+                    onSave={saveManualCharts}
+                    status={manualChartsStatus}
+                  />
+                )}
                 {ondaPorCm.length === 0 ? <EmptyState text="No hay acciones registradas por responsable." /> : (
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={ondaPorCm} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
@@ -1814,6 +1943,14 @@ export default function OndaExpansivaApp() {
               </ChartCard>
 
               <ChartCard title="Acciones por red" subtitle="Distribución de publicaciones y siembras">
+                {isCM && (
+                  <ManualChartEditor
+                    rows={manualCharts.accionesPorRed}
+                    onChange={(index, value) => updateManualChartValue("accionesPorRed", index, value)}
+                    onSave={saveManualCharts}
+                    status={manualChartsStatus}
+                  />
+                )}
                 {accionesPorRed.length === 0 ? <EmptyState text="No hay acciones registradas por red." /> : (
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
