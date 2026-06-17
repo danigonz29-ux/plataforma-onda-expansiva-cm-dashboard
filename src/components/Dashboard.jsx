@@ -36,16 +36,17 @@ import {
 const VISTA_PROYECTO_ID = import.meta.env.VITE_VISTA_PROYECTO_ID ?? "";
 const MANUAL_CHARTS_CATEGORY = "__dashboard_manual_charts";
 const REPORTE_MANUAL = {
-  interaccionesCaptadas: 742,
-  compartidos: 77,
-  comentarios: 83,
-  accionesTropa: 1352,
-  reproduccionesVideo: 6666,
-  contenidosRealizados: 40,
+  interaccionesCaptadas: 1231,
+  compartidos: 93,
+  comentarios: 104,
+  accionesTropa: 1856,
+  seguidoresCaptados: 18,
+  reproduccionesVideo: 63423,
+  contenidosRealizados: 58,
   contenidosDifundidos: 58,
   redesActivas: 3,
-  contenidosRealizadosDetalle: "13 jun: 9 · 14 jun: 16 · 15 jun: 18",
-  reproduccionesVideoDetalle: "13 jun: 1.352 · 14 jun: 2.546 · 15 jun: 2.768",
+  contenidosRealizadosDetalle: "Total registrado manualmente",
+  reproduccionesVideoDetalle: "Total registrado manualmente",
   reproduccionesVideoPorFecha: [
     { fecha: "13 jun", onda: 1352 },
     { fecha: "14 jun", onda: 2546 },
@@ -1169,7 +1170,7 @@ export default function OndaExpansivaApp() {
       ...(!overriddenMetrics.has("compartidos") && { compartidos: REPORTE_MANUAL.compartidos }),
       ...(!overriddenMetrics.has("comentarios") && { comentarios: REPORTE_MANUAL.comentarios }),
       ...(!overriddenMetrics.has("accionesTropa") && { accionesTropa: REPORTE_MANUAL.accionesTropa }),
-      ...(!overriddenMetrics.has("seguidoresCaptados") && { seguidoresCaptados: resumenPeriodo.seguidoresCaptados || 0 }),
+      ...(!overriddenMetrics.has("seguidoresCaptados") && { seguidoresCaptados: REPORTE_MANUAL.seguidoresCaptados }),
     }));
   // overriddenMetrics excluido intencionalmente: el efecto solo re-sincroniza cuando cambian los datos, no cuando el usuario edita un campo
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1182,7 +1183,7 @@ export default function OndaExpansivaApp() {
       compartidos: REPORTE_MANUAL.compartidos,
       comentarios: REPORTE_MANUAL.comentarios,
       accionesTropa: REPORTE_MANUAL.accionesTropa,
-      seguidoresCaptados: resumenPeriodo.seguidoresCaptados || 0,
+      seguidoresCaptados: REPORTE_MANUAL.seguidoresCaptados,
     });
   };
 
