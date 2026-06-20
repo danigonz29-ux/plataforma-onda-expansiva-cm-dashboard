@@ -36,14 +36,14 @@ import {
 const VISTA_PROYECTO_ID = import.meta.env.VITE_VISTA_PROYECTO_ID ?? "";
 const MANUAL_CHARTS_CATEGORY = "__dashboard_manual_charts";
 const REPORTE_MANUAL = {
-  interaccionesCaptadas: 1231,
-  compartidos: 93,
-  comentarios: 104,
-  accionesTropa: 1856,
-  seguidoresCaptados: 18,
-  reproduccionesVideo: 63423,
-  contenidosRealizados: 58,
-  contenidosDifundidos: 58,
+  interaccionesCaptadas: 1647,
+  compartidos: 125,
+  comentarios: 179,
+  accionesTropa: 2325,
+  seguidoresCaptados: 362,
+  reproduccionesVideo: 143503,
+  contenidosRealizados: 73,
+  contenidosDifundidos: 91,
   redesActivas: 3,
   contenidosRealizadosDetalle: "Total registrado manualmente",
   reproduccionesVideoDetalle: "Total registrado manualmente",
@@ -1864,7 +1864,7 @@ export default function OndaExpansivaApp() {
                 }}
               />
               <MetricCard
-                title="Compartido"
+                title="Compartidos"
                 value={fmt(editableMetrics.compartidos)}
                 rawValue={editableMetrics.compartidos}
                 subtitle="Compartidos, reposts e historias"
